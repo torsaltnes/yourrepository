@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DeviationManagement.Application\DeviationManagement.Application.csproj" />
+    <ProjectReference Include="..\DeviationManagement.Infrastructure\DeviationManagement.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>
