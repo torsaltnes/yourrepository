@@ -32,8 +32,8 @@ public sealed class DeviationValidator
         if (!Enum.IsDefined(typeof(DeviationStatus), request.Status))
             errors["status"] = ["Status is not a valid value."];
 
-        if (request.OccurredAt == default)
-            errors["occurredAt"] = ["OccurredAt must be a valid date."];
+        if (request.ReportedAt == default)
+            errors["reportedAt"] = ["ReportedAt must be a valid date."];
 
         return errors.Count > 0 ? errors : null;
     }

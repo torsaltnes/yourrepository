@@ -14,8 +14,7 @@ const mockDeviation: Deviation = {
   severity: 'High',
   status: 'InProgress',
   reportedBy: 'Alice',
-  occurredAt: '2024-03-15T00:00:00Z',
-  createdAt: '2024-03-15T00:00:00Z',
+  reportedAt: '2024-03-15T00:00:00Z',
   updatedAt: '2024-03-15T00:00:00Z'
 };
 
@@ -26,6 +25,7 @@ function createStoreMock(selectedDev: Deviation | null = null) {
     error: signal<string | null>(null),
     selectedDeviation: signal<Deviation | null>(selectedDev),
     loadById: jasmine.createSpy('loadById'),
+    clearSelection: jasmine.createSpy('clearSelection'),
     create: jasmine.createSpy('create').and.returnValue(Promise.resolve(mockDeviation)),
     update: jasmine.createSpy('update').and.returnValue(Promise.resolve(mockDeviation))
   };
@@ -63,6 +63,10 @@ describe('DeviationFormComponent – create mode', () => {
     expect(component.isEditMode).toBeFalse();
   });
 
+  it('should call clearSelection on init in create mode', () => {
+    expect(storeMock.clearSelection).toHaveBeenCalled();
+  });
+
   it('form should be invalid when empty title', () => {
     component.form.get('title')!.setValue('');
     expect(component.form.get('title')!.invalid).toBeTrue();
@@ -75,9 +79,14 @@ describe('DeviationFormComponent – create mode', () => {
       severity: 'Low',
       status: 'Open',
       reportedBy: 'Jane',
-      occurredAt: '2024-01-01'
+      reportedAt: '2024-01-01'
     });
     expect(component.form.valid).toBeTrue();
+  });
+
+  it('form should have reportedAt control (not occurredAt)', () => {
+    expect(component.form.get('reportedAt')).toBeTruthy();
+    expect(component.form.get('occurredAt')).toBeNull();
   });
 
   it('submit should mark form touched if invalid', async () => {
@@ -94,17 +103,50 @@ describe('DeviationFormComponent – create mode', () => {
       severity: 'Medium',
       status: 'Open',
       reportedBy: 'User',
-      occurredAt: '2024-01-15'
+      reportedAt: '2024-01-15'
     });
     await component.submit();
     expect(storeMock.create).toHaveBeenCalled();
   });
 
-  it('should show required validation message', () => {
+  it('submit should navigate to /deviations after successful create', async () => {
+    component.form.setValue({
+      title: 'New Title',
+      description: '',
+      severity: 'Low',
+      status: 'Open',
+      reportedBy: 'User',
+      reportedAt: '2024-01-15'
+    });
+    await component.submit();
+    expect(router.navigate).toHaveBeenCalledWith(['/deviations']);
+  });
+
+  it('cancel() should navigate to /deviations', () => {
+    component.cancel();
+    expect(router.navigate).toHaveBeenCalledWith(['/deviations']);
+  });
+
+  it('should show required validation message for title', () => {
     component.form.get('title')!.markAsTouched();
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.textContent).toContain('Title is required');
+  });
+
+  it('should show required validation message for reportedAt', () => {
+    component.form.get('reportedAt')!.markAsTouched();
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.textContent).toContain('Reported At is required');
+  });
+
+  it('should render store error banner when error is set', () => {
+    storeMock.error.set('Backend validation failed');
+    fixture.detectChanges();
+    const alert = fixture.nativeElement.querySelector('[role="alert"]');
+    expect(alert).toBeTruthy();
+    expect(alert.textContent).toContain('Backend validation failed');
   });
 });
 
@@ -145,16 +187,19 @@ describe('DeviationFormComponent – edit mode', () => {
   });
 
   it('should prefill form with existing deviation via effect', () => {
-    // The store mock has selectedDeviation already set to mockDeviation
-    // After detectChanges the effect should have fired
     expect(component.form.get('title')!.value).toBe('Existing Title');
     expect(component.form.get('reportedBy')!.value).toBe('Alice');
+    expect(component.form.get('reportedAt')!.value).toBe('2024-03-15');
   });
 
   it('submit should call store.update in edit mode', async () => {
-    // Ensure form is valid (prefilled by effect)
     component.form.patchValue({ title: 'Updated Title' });
     await component.submit();
     expect(storeMock.update).toHaveBeenCalledWith('test-id', jasmine.any(Object));
+  });
+
+  it('submit should navigate to /deviations after successful update', async () => {
+    await component.submit();
+    expect(router.navigate).toHaveBeenCalledWith(['/deviations']);
   });
 });

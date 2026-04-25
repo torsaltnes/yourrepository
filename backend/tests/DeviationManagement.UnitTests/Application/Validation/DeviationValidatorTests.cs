@@ -99,13 +99,13 @@ public sealed class DeviationValidatorTests
     }
 
     [Fact]
-    public void ValidateForSave_DefaultOccurredAt_ReturnsError()
+    public void ValidateForSave_DefaultReportedAt_ReturnsError()
     {
-        var request = ValidRequest() with { OccurredAt = default };
+        var request = ValidRequest() with { ReportedAt = default };
         var result = _sut.ValidateForSave(request);
 
         Assert.NotNull(result);
-        Assert.True(result!.ContainsKey("occurredAt"));
+        Assert.True(result!.ContainsKey("reportedAt"));
     }
 
     [Theory]

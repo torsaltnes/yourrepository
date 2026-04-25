@@ -18,9 +18,8 @@ describe('DeviationApiService', () => {
     severity: 'Medium',
     status: 'Open',
     reportedBy: 'Test User',
-    occurredAt: '2024-01-01T00:00:00Z',
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z'
+    reportedAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-02T00:00:00Z'
   };
 
   const mockForm: DeviationForm = {
@@ -29,7 +28,7 @@ describe('DeviationApiService', () => {
     severity: 'Medium',
     status: 'Open',
     reportedBy: 'Test User',
-    occurredAt: '2024-01-01'
+    reportedAt: '2024-01-01'
   };
 
   beforeEach(() => {
@@ -72,7 +71,7 @@ describe('DeviationApiService', () => {
     req.flush(mockDeviation);
   });
 
-  it('create() should POST /deviations with payload', () => {
+  it('create() should POST /deviations with reportedAt payload', () => {
     service.create(mockForm).subscribe(result => {
       expect(result).toEqual(mockDeviation);
     });
@@ -80,6 +79,7 @@ describe('DeviationApiService', () => {
     const req = httpMock.expectOne(base);
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual(mockForm);
+    expect(req.request.body.reportedAt).toBeDefined();
     req.flush(mockDeviation);
   });
 
@@ -95,7 +95,7 @@ describe('DeviationApiService', () => {
     req.flush(mockDeviation);
   });
 
-  it('delete() should DELETE /deviations/:id', () => {
+  it('delete() should DELETE /deviations/:id and handle no-content', () => {
     const id = mockDeviation.id;
     service.delete(id).subscribe();
 

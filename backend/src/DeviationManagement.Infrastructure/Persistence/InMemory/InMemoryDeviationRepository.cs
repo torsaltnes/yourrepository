@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using DeviationManagement.Application.Abstractions.Persistence;
 using DeviationManagement.Domain.Entities;
-using DeviationManagement.Domain.Enums;
 
 namespace DeviationManagement.Infrastructure.Persistence.InMemory;
 
@@ -11,7 +10,7 @@ public sealed class InMemoryDeviationRepository : IDeviationRepository
 
     public Task<IReadOnlyCollection<Deviation>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        IReadOnlyCollection<Deviation> result = [.. _store.Values.OrderBy(d => d.CreatedAt)];
+        IReadOnlyCollection<Deviation> result = [.. _store.Values.OrderByDescending(d => d.ReportedAt)];
         return Task.FromResult(result);
     }
 
@@ -32,7 +31,6 @@ public sealed class InMemoryDeviationRepository : IDeviationRepository
         if (!_store.ContainsKey(entity.Id))
             return Task.FromResult<Deviation?>(null);
 
-        // Replace the stored entity with the updated clone
         _store[entity.Id] = Clone(entity);
         return Task.FromResult<Deviation?>(_store[entity.Id]);
     }
@@ -50,7 +48,6 @@ public sealed class InMemoryDeviationRepository : IDeviationRepository
         source.Severity,
         source.Status,
         source.ReportedBy,
-        source.OccurredAt,
-        source.CreatedAt,
+        source.ReportedAt,
         source.UpdatedAt);
 }

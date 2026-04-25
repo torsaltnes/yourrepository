@@ -22,5 +22,6 @@ export const routes: Routes = [
       import('./features/deviations/deviation-form/deviation-form.component').then(
         (m) => m.DeviationFormComponent
       )
-  }
+  },
+  { path: '**', redirectTo: '/deviations' }
 ];

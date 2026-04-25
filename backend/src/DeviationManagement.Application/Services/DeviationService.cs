@@ -38,8 +38,7 @@ public sealed class DeviationService(
             request.Severity,
             request.Status,
             request.ReportedBy,
-            request.OccurredAt,
-            now,
+            request.ReportedAt,
             now);
 
         var created = await repository.CreateAsync(entity, cancellationToken);
@@ -65,7 +64,7 @@ public sealed class DeviationService(
             request.Severity,
             request.Status,
             request.ReportedBy,
-            request.OccurredAt);
+            request.ReportedAt);
 
         var updated = await repository.UpdateAsync(existing, cancellationToken);
         return updated is null ? (null, true, null) : (ToDto(updated), false, null);
@@ -83,7 +82,6 @@ public sealed class DeviationService(
         entity.Severity,
         entity.Status,
         entity.ReportedBy,
-        entity.OccurredAt,
-        entity.CreatedAt,
+        entity.ReportedAt,
         entity.UpdatedAt);
 }

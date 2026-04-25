@@ -1,6 +1,6 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { SlicePipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { DeviationStore } from '../data/deviation.store';
 import { DeviationBadgeComponent } from '../../../shared/ui/deviation-badge/deviation-badge.component';
 import { Deviation } from '../../../core/models/deviation.model';
@@ -8,7 +8,8 @@ import { Deviation } from '../../../core/models/deviation.model';
 @Component({
   selector: 'app-deviation-list',
   standalone: true,
-  imports: [RouterLink, SlicePipe, DeviationBadgeComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterLink, DatePipe, DeviationBadgeComponent],
   templateUrl: './deviation-list.component.html',
   styleUrl: './deviation-list.component.css'
 })

@@ -3,6 +3,7 @@ using DeviationManagement.Api.Controllers;
 using DeviationManagement.Application.Abstractions.Services;
 using DeviationManagement.Application.DTOs;
 using DeviationManagement.Domain.Enums;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using Xunit;
@@ -18,6 +19,11 @@ public sealed class DeviationsControllerTests
     {
         _serviceMock = new Mock<IDeviationService>();
         _sut = new DeviationsController(_serviceMock.Object);
+        // Provide HttpContext so StatusCodes can be resolved
+        _sut.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext()
+        };
     }
 
     private static DeviationDto BuildDto(Guid? id = null) => new(
@@ -28,7 +34,6 @@ public sealed class DeviationsControllerTests
         DeviationStatus.Open,
         "Reporter",
         DateTimeOffset.UtcNow.AddDays(-1),
-        DateTimeOffset.UtcNow,
         DateTimeOffset.UtcNow);
 
     private static SaveDeviationApiRequest ValidApiRequest() => new(
@@ -69,14 +74,16 @@ public sealed class DeviationsControllerTests
     }
 
     [Fact]
-    public async Task GetById_MissingId_ReturnsNotFound()
+    public async Task GetById_MissingId_ReturnsNotFoundWithProblemDetails()
     {
         _serviceMock.Setup(s => s.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
                     .ReturnsAsync((DeviationDto?)null);
 
         var result = await _sut.GetById(Guid.NewGuid(), CancellationToken.None);
 
-        Assert.IsType<NotFoundResult>(result);
+        var notFound = Assert.IsType<NotFoundObjectResult>(result);
+        var problem = Assert.IsType<ProblemDetails>(notFound.Value);
+        Assert.Equal(404, problem.Status);
     }
 
     // ─── POST /api/deviations ─────────────────────────────────────────────────
@@ -92,10 +99,11 @@ public sealed class DeviationsControllerTests
 
         var created = Assert.IsType<CreatedAtActionResult>(result);
         Assert.Equal(201, created.StatusCode);
+        Assert.Equal(nameof(_sut.GetById), created.ActionName);
     }
 
     [Fact]
-    public async Task Create_InvalidRequest_ReturnsBadRequest()
+    public async Task Create_InvalidRequest_ReturnsBadRequestWithValidationProblemDetails()
     {
         var errors = new Dictionary<string, string[]> { ["title"] = ["Title is required."] };
         _serviceMock.Setup(s => s.CreateAsync(It.IsAny<SaveDeviationRequest>(), It.IsAny<CancellationToken>()))
@@ -105,6 +113,7 @@ public sealed class DeviationsControllerTests
 
         var objResult = Assert.IsAssignableFrom<ObjectResult>(result);
         Assert.Equal(400, objResult.StatusCode);
+        Assert.IsType<ValidationProblemDetails>(objResult.Value);
     }
 
     // ─── PUT /api/deviations/{id} ─────────────────────────────────────────────
@@ -122,18 +131,20 @@ public sealed class DeviationsControllerTests
     }
 
     [Fact]
-    public async Task Update_NotFound_ReturnsNotFound()
+    public async Task Update_NotFound_ReturnsNotFoundWithProblemDetails()
     {
         _serviceMock.Setup(s => s.UpdateAsync(It.IsAny<Guid>(), It.IsAny<SaveDeviationRequest>(), It.IsAny<CancellationToken>()))
                     .ReturnsAsync(((DeviationDto?)null, true, (Dictionary<string, string[]>?)null));
 
         var result = await _sut.Update(Guid.NewGuid(), ValidApiRequest(), CancellationToken.None);
 
-        Assert.IsType<NotFoundResult>(result);
+        var notFound = Assert.IsType<NotFoundObjectResult>(result);
+        var problem = Assert.IsType<ProblemDetails>(notFound.Value);
+        Assert.Equal(404, problem.Status);
     }
 
     [Fact]
-    public async Task Update_InvalidRequest_ReturnsBadRequest()
+    public async Task Update_InvalidRequest_ReturnsBadRequestWithValidationProblemDetails()
     {
         var errors = new Dictionary<string, string[]> { ["title"] = ["Title is required."] };
         _serviceMock.Setup(s => s.UpdateAsync(It.IsAny<Guid>(), It.IsAny<SaveDeviationRequest>(), It.IsAny<CancellationToken>()))
@@ -143,6 +154,7 @@ public sealed class DeviationsControllerTests
 
         var objResult = Assert.IsAssignableFrom<ObjectResult>(result);
         Assert.Equal(400, objResult.StatusCode);
+        Assert.IsType<ValidationProblemDetails>(objResult.Value);
     }
 
     // ─── DELETE /api/deviations/{id} ──────────────────────────────────────────
@@ -160,13 +172,15 @@ public sealed class DeviationsControllerTests
     }
 
     [Fact]
-    public async Task Delete_MissingId_ReturnsNotFound()
+    public async Task Delete_MissingId_ReturnsNotFoundWithProblemDetails()
     {
         _serviceMock.Setup(s => s.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
                     .ReturnsAsync(false);
 
         var result = await _sut.Delete(Guid.NewGuid(), CancellationToken.None);
 
-        Assert.IsType<NotFoundResult>(result);
+        var notFound = Assert.IsType<NotFoundObjectResult>(result);
+        var problem = Assert.IsType<ProblemDetails>(notFound.Value);
+        Assert.Equal(404, problem.Status);
     }
 }

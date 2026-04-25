@@ -9,6 +9,5 @@ public sealed record DeviationDto(
     DeviationSeverity Severity,
     DeviationStatus Status,
     string ReportedBy,
-    DateTimeOffset OccurredAt,
-    DateTimeOffset CreatedAt,
+    DateTimeOffset ReportedAt,
     DateTimeOffset UpdatedAt);

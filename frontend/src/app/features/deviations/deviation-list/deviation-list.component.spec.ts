@@ -13,9 +13,8 @@ const mockDeviations: Deviation[] = [
     severity: 'High',
     status: 'Open',
     reportedBy: 'Alice',
-    occurredAt: '2024-01-01T00:00:00Z',
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z'
+    reportedAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-02T00:00:00Z'
   },
   {
     id: '2',
@@ -24,9 +23,8 @@ const mockDeviations: Deviation[] = [
     severity: 'Low',
     status: 'Resolved',
     reportedBy: 'Bob',
-    occurredAt: '2024-02-01T00:00:00Z',
-    createdAt: '2024-02-01T00:00:00Z',
-    updatedAt: '2024-02-01T00:00:00Z'
+    reportedAt: '2024-02-01T00:00:00Z',
+    updatedAt: '2024-02-02T00:00:00Z'
   }
 ];
 
@@ -78,12 +76,25 @@ describe('DeviationListComponent', () => {
     expect(storeMock.loadAll).toHaveBeenCalled();
   });
 
-  it('should render list when deviations exist', async () => {
+  it('should render table rows when deviations exist', async () => {
     await setup({ deviations: mockDeviations });
-    const cards = fixture.nativeElement.querySelectorAll('.card');
-    // At least two cards (list items)
-    const titles = fixture.nativeElement.querySelectorAll('h2');
-    expect(titles.length).toBeGreaterThanOrEqual(2);
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Test Deviation 1');
+    expect(text).toContain('Test Deviation 2');
+  });
+
+  it('should show severity and status badges', async () => {
+    await setup({ deviations: mockDeviations });
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('High');
+    expect(text).toContain('Resolved');
+  });
+
+  it('should show InProgress rendered as "In Progress"', async () => {
+    const devWithInProgress: Deviation[] = [{ ...mockDeviations[0], status: 'InProgress' }];
+    await setup({ deviations: devWithInProgress });
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('In Progress');
   });
 
   it('should show empty state when no deviations', async () => {
@@ -98,14 +109,42 @@ describe('DeviationListComponent', () => {
     expect(text).toContain('Loading');
   });
 
-  it('should show error state', async () => {
+  it('should show error state with retry button', async () => {
     await setup({ error: 'Network error' });
-    const text = fixture.nativeElement.textContent;
+    const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Network error');
+    const retryBtn = fixture.nativeElement.querySelector('button');
+    expect(retryBtn).toBeTruthy();
+  });
+
+  it('retry() should call store.loadAll', async () => {
+    await setup({ error: 'fail' });
+    component.retry();
+    expect(storeMock.loadAll).toHaveBeenCalledTimes(2); // once on init, once on retry
   });
 
   it('trackById should return item id', async () => {
     await setup();
     expect(component.trackById(0, mockDeviations[0])).toBe('1');
+  });
+
+  it('edit link should point to /deviations/:id/edit', async () => {
+    await setup({ deviations: [mockDeviations[0]] });
+    const link = fixture.nativeElement.querySelector('a[ng-reflect-router-link], a[href*="edit"]');
+    // The routerLink directive may not resolve href in unit tests without router navigation,
+    // but we can verify the component renders edit links
+    const allLinks = fixture.nativeElement.querySelectorAll('a');
+    const hasEditLink = Array.from(allLinks).some((a: any) => {
+      const rl = a.getAttribute('ng-reflect-router-link') || a.getAttribute('href') || '';
+      return rl.includes('edit') || rl.includes('1');
+    });
+    expect(hasEditLink).toBeTrue();
+  });
+
+  it('should show new deviation link', async () => {
+    await setup();
+    const allLinks = Array.from(fixture.nativeElement.querySelectorAll('a')) as HTMLAnchorElement[];
+    const newLink = allLinks.find(a => a.textContent?.includes('New Deviation') || a.getAttribute('ng-reflect-router-link')?.includes('new'));
+    expect(newLink).toBeTruthy();
   });
 });

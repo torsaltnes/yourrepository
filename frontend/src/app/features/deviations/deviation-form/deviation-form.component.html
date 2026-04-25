@@ -11,7 +11,7 @@
 
   <!-- Error from store -->
   @if (store.error()) {
-    <div class="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+    <div class="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm" role="alert">
       {{ store.error() }}
     </div>
   }
@@ -92,18 +92,18 @@
       }
     </div>
 
-    <!-- Occurred At -->
+    <!-- Reported At -->
     <div>
-      <label for="occurredAt" class="form-label">Occurred At <span class="text-red-500">*</span></label>
+      <label for="reportedAt" class="form-label">Reported At <span class="text-red-500">*</span></label>
       <input
-        id="occurredAt"
+        id="reportedAt"
         type="date"
-        formControlName="occurredAt"
+        formControlName="reportedAt"
         class="form-input"
-        [class.invalid]="form.get('occurredAt')?.invalid && form.get('occurredAt')?.touched"
+        [class.invalid]="form.get('reportedAt')?.invalid && form.get('reportedAt')?.touched"
       />
-      @if (form.get('occurredAt')?.invalid && form.get('occurredAt')?.touched) {
-        <p class="form-error">Occurred At is required.</p>
+      @if (form.get('reportedAt')?.invalid && form.get('reportedAt')?.touched) {
+        <p class="form-error">Reported At is required.</p>
       }
     </div>
 

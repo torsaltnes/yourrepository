@@ -12,7 +12,7 @@ public static class DeviationApiMapper
         apiRequest.Severity,
         apiRequest.Status,
         apiRequest.ReportedBy,
-        apiRequest.OccurredAt);
+        apiRequest.ReportedAt);
 
     public static DeviationApiResponse ToApiResponse(DeviationDto dto) => new(
         dto.Id,
@@ -21,7 +21,6 @@ public static class DeviationApiMapper
         dto.Severity,
         dto.Status,
         dto.ReportedBy,
-        dto.OccurredAt,
-        dto.CreatedAt,
+        dto.ReportedAt,
         dto.UpdatedAt);
 }

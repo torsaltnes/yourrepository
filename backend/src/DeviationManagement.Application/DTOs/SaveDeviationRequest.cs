@@ -8,4 +8,4 @@ public sealed record SaveDeviationRequest(
     DeviationSeverity Severity,
     DeviationStatus Status,
     string ReportedBy,
-    DateTimeOffset OccurredAt);
+    DateTimeOffset ReportedAt);

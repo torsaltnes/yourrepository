@@ -21,7 +21,12 @@ public sealed class DeviationsController(IDeviationService deviationService) : C
     {
         var dto = await deviationService.GetByIdAsync(id, cancellationToken);
         if (dto is null)
-            return NotFound();
+            return NotFound(new ProblemDetails
+            {
+                Title = "Not Found",
+                Detail = $"Deviation with id '{id}' was not found.",
+                Status = StatusCodes.Status404NotFound
+            });
 
         return Ok(DeviationApiMapper.ToApiResponse(dto));
     }
@@ -49,7 +54,12 @@ public sealed class DeviationsController(IDeviationService deviationService) : C
             return ValidationProblem(new ValidationProblemDetails(validationErrors));
 
         if (notFound)
-            return NotFound();
+            return NotFound(new ProblemDetails
+            {
+                Title = "Not Found",
+                Detail = $"Deviation with id '{id}' was not found.",
+                Status = StatusCodes.Status404NotFound
+            });
 
         return Ok(DeviationApiMapper.ToApiResponse(dto!));
     }
@@ -59,7 +69,12 @@ public sealed class DeviationsController(IDeviationService deviationService) : C
     {
         var deleted = await deviationService.DeleteAsync(id, cancellationToken);
         if (!deleted)
-            return NotFound();
+            return NotFound(new ProblemDetails
+            {
+                Title = "Not Found",
+                Detail = $"Deviation with id '{id}' was not found.",
+                Status = StatusCodes.Status404NotFound
+            });
 
         return NoContent();
     }

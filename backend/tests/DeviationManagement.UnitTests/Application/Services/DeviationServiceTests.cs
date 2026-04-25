@@ -38,7 +38,6 @@ public sealed class DeviationServiceTests
             DeviationStatus.Open,
             "Jane Doe",
             DateTimeOffset.UtcNow.AddDays(-1),
-            DateTimeOffset.UtcNow,
             DateTimeOffset.UtcNow);
 
     // ─── GetAll ───────────────────────────────────────────────────────────────
@@ -56,6 +55,46 @@ public sealed class DeviationServiceTests
         _repoMock.Verify(r => r.GetAllAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task GetAllAsync_MapsReportedAtCorrectly()
+    {
+        var reportedAt = DateTimeOffset.UtcNow.AddDays(-5);
+        var entity = new Deviation(Guid.NewGuid(), "T", "", DeviationSeverity.Low, DeviationStatus.Open, "A", reportedAt, DateTimeOffset.UtcNow);
+        _repoMock.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+                 .ReturnsAsync([entity]);
+
+        var result = await _sut.GetAllAsync();
+        var dto = result.Single();
+
+        Assert.Equal(reportedAt, dto.ReportedAt);
+    }
+
+    // ─── GetById ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetByIdAsync_ExistingId_ReturnsDto()
+    {
+        var entity = BuildDeviation();
+        _repoMock.Setup(r => r.GetByIdAsync(entity.Id, It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(entity);
+
+        var result = await _sut.GetByIdAsync(entity.Id);
+
+        Assert.NotNull(result);
+        Assert.Equal(entity.Id, result!.Id);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_MissingId_ReturnsNull()
+    {
+        _repoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync((Deviation?)null);
+
+        var result = await _sut.GetByIdAsync(Guid.NewGuid());
+
+        Assert.Null(result);
+    }
+
     // ─── Create ───────────────────────────────────────────────────────────────
 
     [Fact]
@@ -71,6 +110,8 @@ public sealed class DeviationServiceTests
         Assert.NotNull(dto);
         Assert.NotEqual(Guid.Empty, dto!.Id);
         Assert.Equal(request.Title, dto.Title);
+        Assert.Equal(request.ReportedAt, dto.ReportedAt);
+        Assert.True(dto.UpdatedAt > DateTimeOffset.MinValue);
         _repoMock.Verify(r => r.CreateAsync(It.IsAny<Deviation>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -124,6 +165,36 @@ public sealed class DeviationServiceTests
         Assert.Null(errors);
         Assert.NotNull(dto);
         _repoMock.Verify(r => r.UpdateAsync(It.IsAny<Deviation>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_SetsUpdatedAtOnEntity()
+    {
+        var entity = BuildDeviation();
+        var beforeUpdate = entity.UpdatedAt;
+
+        _repoMock.Setup(r => r.GetByIdAsync(entity.Id, It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(entity);
+        _repoMock.Setup(r => r.UpdateAsync(It.IsAny<Deviation>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync((Deviation e, CancellationToken _) => e);
+
+        await Task.Delay(10); // Ensure time advances
+        await _sut.UpdateAsync(entity.Id, ValidRequest());
+
+        Assert.True(entity.UpdatedAt >= beforeUpdate);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_InvalidRequest_ReturnsValidationErrors()
+    {
+        var badRequest = new SaveDeviationRequest(string.Empty, "", DeviationSeverity.Low, DeviationStatus.Open, string.Empty, DateTimeOffset.UtcNow);
+
+        var (dto, notFound, errors) = await _sut.UpdateAsync(Guid.NewGuid(), badRequest);
+
+        Assert.Null(dto);
+        Assert.False(notFound);
+        Assert.NotNull(errors);
+        Assert.True(errors!.ContainsKey("title"));
     }
 
     // ─── Delete ───────────────────────────────────────────────────────────────

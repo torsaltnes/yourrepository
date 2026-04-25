@@ -6,5 +6,5 @@ export interface DeviationForm {
   severity: DeviationSeverity;
   status: DeviationStatus;
   reportedBy: string;
-  occurredAt: string;
+  reportedAt: string;
 }

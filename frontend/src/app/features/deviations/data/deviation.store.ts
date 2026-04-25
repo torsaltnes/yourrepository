@@ -1,7 +1,29 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { DeviationApiService } from '../../../core/services/deviation-api.service';
 import { Deviation } from '../../../core/models/deviation.model';
 import { DeviationForm } from '../../../core/models/deviation-form.model';
+
+function extractErrorMessage(err: unknown): string {
+  if (err instanceof HttpErrorResponse) {
+    const body = err.error;
+    if (body && typeof body === 'object') {
+      // ValidationProblemDetails: has .errors dict
+      if (body['errors']) {
+        const msgs = Object.values(body['errors'] as Record<string, string[]>)
+          .flat()
+          .join('; ');
+        return msgs || body['title'] || 'Validation failed.';
+      }
+      // ProblemDetails: has .detail or .title
+      if (body['detail']) return body['detail'];
+      if (body['title']) return body['title'];
+    }
+    return err.message || 'An unexpected error occurred.';
+  }
+  if (err instanceof Error) return err.message;
+  return 'An unexpected error occurred.';
+}
 
 @Injectable({ providedIn: 'root' })
 export class DeviationStore {
@@ -27,7 +49,7 @@ export class DeviationStore {
         this.loading.set(false);
       },
       error: (err) => {
-        this.error.set(err?.message ?? 'Failed to load deviations');
+        this.error.set(extractErrorMessage(err));
         this.loading.set(false);
       }
     });
@@ -42,7 +64,7 @@ export class DeviationStore {
         this.loading.set(false);
       },
       error: (err) => {
-        this.error.set(err?.message ?? 'Failed to load deviation');
+        this.error.set(extractErrorMessage(err));
         this.loading.set(false);
       }
     });
@@ -54,12 +76,12 @@ export class DeviationStore {
     return new Promise((resolve) => {
       this.#api.create(payload).subscribe({
         next: (created) => {
-          this.deviations.update(list => [...list, created]);
+          this.deviations.update(list => [created, ...list]);
           this.saving.set(false);
           resolve(created);
         },
         error: (err) => {
-          this.error.set(err?.message ?? 'Failed to create deviation');
+          this.error.set(extractErrorMessage(err));
           this.saving.set(false);
           resolve(null);
         }
@@ -79,7 +101,7 @@ export class DeviationStore {
           resolve(updated);
         },
         error: (err) => {
-          this.error.set(err?.message ?? 'Failed to update deviation');
+          this.error.set(extractErrorMessage(err));
           this.saving.set(false);
           resolve(null);
         }
@@ -98,12 +120,16 @@ export class DeviationStore {
           resolve(true);
         },
         error: (err) => {
-          this.error.set(err?.message ?? 'Failed to delete deviation');
+          this.error.set(extractErrorMessage(err));
           this.saving.set(false);
           resolve(false);
         }
       });
     });
+  }
+
+  clearSelection(): void {
+    this.selectedDeviation.set(null);
   }
 
   clearError(): void {

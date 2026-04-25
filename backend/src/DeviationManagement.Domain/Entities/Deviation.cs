@@ -10,8 +10,7 @@ public sealed class Deviation
     public DeviationSeverity Severity { get; private set; }
     public DeviationStatus Status { get; private set; }
     public string ReportedBy { get; private set; } = string.Empty;
-    public DateTimeOffset OccurredAt { get; private set; }
-    public DateTimeOffset CreatedAt { get; private set; }
+    public DateTimeOffset ReportedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
     // EF / serializer constructor
@@ -24,8 +23,7 @@ public sealed class Deviation
         DeviationSeverity severity,
         DeviationStatus status,
         string reportedBy,
-        DateTimeOffset occurredAt,
-        DateTimeOffset createdAt,
+        DateTimeOffset reportedAt,
         DateTimeOffset updatedAt)
     {
         Id = id;
@@ -34,8 +32,7 @@ public sealed class Deviation
         Severity = severity;
         Status = status;
         ReportedBy = reportedBy;
-        OccurredAt = occurredAt;
-        CreatedAt = createdAt;
+        ReportedAt = reportedAt;
         UpdatedAt = updatedAt;
     }
 
@@ -45,14 +42,14 @@ public sealed class Deviation
         DeviationSeverity severity,
         DeviationStatus status,
         string reportedBy,
-        DateTimeOffset occurredAt)
+        DateTimeOffset reportedAt)
     {
         Title = title;
         Description = description;
         Severity = severity;
         Status = status;
         ReportedBy = reportedBy;
-        OccurredAt = occurredAt;
+        ReportedAt = reportedAt;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 }

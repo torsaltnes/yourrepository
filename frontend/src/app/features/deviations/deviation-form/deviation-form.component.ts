@@ -1,4 +1,4 @@
-import { Component, effect, inject, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DeviationStore } from '../data/deviation.store';
@@ -7,6 +7,7 @@ import { DeviationForm } from '../../../core/models/deviation-form.model';
 @Component({
   selector: 'app-deviation-form',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule],
   templateUrl: './deviation-form.component.html',
   styleUrl: './deviation-form.component.css'
@@ -36,7 +37,7 @@ export class DeviationFormComponent implements OnInit {
           severity: dev.severity,
           status: dev.status,
           reportedBy: dev.reportedBy,
-          occurredAt: dev.occurredAt.slice(0, 10)
+          reportedAt: dev.reportedAt.slice(0, 10)
         });
       }
     });
@@ -45,7 +46,9 @@ export class DeviationFormComponent implements OnInit {
   ngOnInit(): void {
     this.editId = this.#route.snapshot.paramMap.get('id');
     if (this.editId) {
-      this.loadForEdit(this.editId);
+      this.store.loadById(this.editId);
+    } else {
+      this.store.clearSelection();
     }
   }
 
@@ -56,12 +59,8 @@ export class DeviationFormComponent implements OnInit {
       severity: ['Low', [Validators.required]],
       status: ['Open', [Validators.required]],
       reportedBy: ['', [Validators.required, Validators.maxLength(100)]],
-      occurredAt: ['', [Validators.required]]
+      reportedAt: ['', [Validators.required]]
     });
-  }
-
-  loadForEdit(id: string): void {
-    this.store.loadById(id);
   }
 
   async submit(): Promise<void> {

@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DeviationManagement.Api/DeviationManagement.Api.csproj" />
+    <Project Path="src/DeviationManagement.Application/DeviationManagement.Application.csproj" />
+    <Project Path="src/DeviationManagement.Domain/DeviationManagement.Domain.csproj" />
+    <Project Path="src/DeviationManagement.Infrastructure/DeviationManagement.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DeviationManagement.UnitTests/DeviationManagement.UnitTests.csproj" />
+  </Folder>
+</Solution>

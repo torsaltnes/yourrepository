@@ -8,7 +8,6 @@ export interface Deviation {
   severity: DeviationSeverity;
   status: DeviationStatus;
   reportedBy: string;
-  occurredAt: string;
-  createdAt: string;
+  reportedAt: string;
   updatedAt: string;
 }
