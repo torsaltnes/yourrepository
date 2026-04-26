@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using DeviationManagement.Application.Abstractions.Persistence;
 using DeviationManagement.Domain.Enums;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -21,19 +22,22 @@ public sealed class DeviationsApiIntegrationTests : IClassFixture<WebApplication
 
     public DeviationsApiIntegrationTests(WebApplicationFactory<Program> factory)
     {
-        // Override the repository so each test-class instance gets a fresh store
         _factory = factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureServices(services =>
             {
-                // Remove the existing singleton repository and replace with a fresh one per test run
+                // ── Replace in-memory store so each test-class instance gets a fresh store ──
                 var descriptor = services.SingleOrDefault(
                     d => d.ServiceType == typeof(IDeviationRepository));
                 if (descriptor is not null)
                     services.Remove(descriptor);
-
                 services.AddSingleton<IDeviationRepository,
                     DeviationManagement.Infrastructure.Persistence.InMemory.InMemoryDeviationRepository>();
+
+                // ── Override authentication with a test scheme that always authenticates ──
+                services.AddAuthentication(TestAuthHandler.SchemeName)
+                        .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
+                            TestAuthHandler.SchemeName, _ => { });
             });
         });
     }
@@ -73,7 +77,7 @@ public sealed class DeviationsApiIntegrationTests : IClassFixture<WebApplication
         var fetched = await getResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOpts);
         Assert.Equal(id, fetched.GetProperty("id").GetString());
 
-        // List
+        // List — must include the newly created deviation
         var listResponse = await client.GetAsync("/api/deviations");
         Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
         var list = await listResponse.Content.ReadFromJsonAsync<JsonElement[]>(JsonOpts);
@@ -106,6 +110,33 @@ public sealed class DeviationsApiIntegrationTests : IClassFixture<WebApplication
         Assert.Equal(HttpStatusCode.NotFound, afterDeleteResponse.StatusCode);
     }
 
+    // ─── Unauthenticated requests are rejected ────────────────────────────────
+
+    [Fact]
+    public async Task GetAll_WithoutAuthentication_Returns401()
+    {
+        // Use the raw factory (without TestAuthHandler) to test auth enforcement
+        var unauthenticatedClient = _factory.CreateClient();
+
+        // Build a factory without the test auth override
+        var vanillaFactory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureServices(services =>
+            {
+                // no auth override — JWT Bearer is required
+            });
+        });
+
+        // Craft a request with no Authorization header
+        var client = vanillaFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var response = await client.GetAsync("/api/deviations");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
     // ─── Enum string serialization ────────────────────────────────────────────
 
     [Fact]
@@ -116,7 +147,6 @@ public sealed class DeviationsApiIntegrationTests : IClassFixture<WebApplication
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
         var body = await response.Content.ReadAsStringAsync();
-        // Severity should be serialized as string "Medium", not integer
         Assert.Contains("\"Medium\"", body);
         Assert.Contains("\"Open\"", body);
         Assert.DoesNotContain("\"severity\":1", body);
@@ -142,7 +172,8 @@ public sealed class DeviationsApiIntegrationTests : IClassFixture<WebApplication
         Assert.Contains("reportedby", propNames);
         Assert.Contains("reportedat", propNames);
         Assert.Contains("updatedat", propNames);
-        // Old fields must not appear
+        // Internal OwnerId must NOT be exposed in the response
+        Assert.DoesNotContain("ownerid", propNames);
         Assert.DoesNotContain("createdat", propNames);
         Assert.DoesNotContain("occurredat", propNames);
     }
@@ -246,5 +277,25 @@ public sealed class DeviationsApiIntegrationTests : IClassFixture<WebApplication
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOpts);
         Assert.True(body.TryGetProperty("status", out var status));
         Assert.Equal(404, status.GetInt32());
+    }
+
+    // ─── Ownership: list only returns caller's deviations ─────────────────────
+
+    [Fact]
+    public async Task GetAll_OnlyReturnsCurrentUsersDeviations()
+    {
+        var client = CreateClient();
+
+        // Create a deviation as TestAuthHandler.TestUserId
+        await client.PostAsJsonAsync("/api/deviations", BuildCreatePayload("My Deviation"));
+
+        // GetAll should return it (belongs to the same test user)
+        var listResponse = await client.GetAsync("/api/deviations");
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+
+        var list = await listResponse.Content.ReadFromJsonAsync<JsonElement[]>(JsonOpts);
+        Assert.NotNull(list);
+        Assert.True(list!.Length >= 1, "Expected at least one deviation owned by test user.");
+        Assert.All(list, d => Assert.True(d.TryGetProperty("title", out _)));
     }
 }

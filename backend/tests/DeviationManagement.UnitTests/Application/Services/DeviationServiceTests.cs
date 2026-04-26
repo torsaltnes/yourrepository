@@ -11,6 +11,9 @@ namespace DeviationManagement.UnitTests.Application.Services;
 
 public sealed class DeviationServiceTests
 {
+    private const string DefaultOwnerId = "owner-001";
+    private const string OtherOwnerId = "owner-other-999";
+
     private readonly Mock<IDeviationRepository> _repoMock;
     private readonly DeviationValidator _validator;
     private readonly DeviationService _sut;
@@ -30,7 +33,7 @@ public sealed class DeviationServiceTests
         "Jane Doe",
         DateTimeOffset.UtcNow.AddDays(-1));
 
-    private static Deviation BuildDeviation(Guid? id = null) =>
+    private static Deviation BuildDeviation(Guid? id = null, string? ownerId = null) =>
         new(id ?? Guid.NewGuid(),
             "Test Title",
             "Some description",
@@ -38,32 +41,46 @@ public sealed class DeviationServiceTests
             DeviationStatus.Open,
             "Jane Doe",
             DateTimeOffset.UtcNow.AddDays(-1),
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            ownerId ?? DefaultOwnerId);
 
     // ─── GetAll ───────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task GetAllAsync_ReturnsAllDtos()
+    public async Task GetAllAsync_ReturnsOnlyOwnersDtos()
     {
-        var entities = new List<Deviation> { BuildDeviation(), BuildDeviation() };
+        var ownedEntity = BuildDeviation(ownerId: DefaultOwnerId);
+        var otherEntity = BuildDeviation(ownerId: OtherOwnerId);
+        _repoMock.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+                 .ReturnsAsync([ownedEntity, otherEntity]);
+
+        var result = await _sut.GetAllAsync(DefaultOwnerId);
+
+        Assert.Single(result);
+        Assert.Equal(ownedEntity.Id, result.First().Id);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_DifferentOwner_ReturnsEmpty()
+    {
+        var entities = new List<Deviation> { BuildDeviation(ownerId: DefaultOwnerId) };
         _repoMock.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
                  .ReturnsAsync(entities);
 
-        var result = await _sut.GetAllAsync();
+        var result = await _sut.GetAllAsync(OtherOwnerId);
 
-        Assert.Equal(2, result.Count);
-        _repoMock.Verify(r => r.GetAllAsync(It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Empty(result);
     }
 
     [Fact]
     public async Task GetAllAsync_MapsReportedAtCorrectly()
     {
         var reportedAt = DateTimeOffset.UtcNow.AddDays(-5);
-        var entity = new Deviation(Guid.NewGuid(), "T", "", DeviationSeverity.Low, DeviationStatus.Open, "A", reportedAt, DateTimeOffset.UtcNow);
+        var entity = new Deviation(Guid.NewGuid(), "T", "", DeviationSeverity.Low, DeviationStatus.Open, "A", reportedAt, DateTimeOffset.UtcNow, DefaultOwnerId);
         _repoMock.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
                  .ReturnsAsync([entity]);
 
-        var result = await _sut.GetAllAsync();
+        var result = await _sut.GetAllAsync(DefaultOwnerId);
         var dto = result.Single();
 
         Assert.Equal(reportedAt, dto.ReportedAt);
@@ -72,13 +89,13 @@ public sealed class DeviationServiceTests
     // ─── GetById ──────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task GetByIdAsync_ExistingId_ReturnsDto()
+    public async Task GetByIdAsync_ExistingId_SameOwner_ReturnsDto()
     {
-        var entity = BuildDeviation();
+        var entity = BuildDeviation(ownerId: DefaultOwnerId);
         _repoMock.Setup(r => r.GetByIdAsync(entity.Id, It.IsAny<CancellationToken>()))
                  .ReturnsAsync(entity);
 
-        var result = await _sut.GetByIdAsync(entity.Id);
+        var result = await _sut.GetByIdAsync(entity.Id, DefaultOwnerId);
 
         Assert.NotNull(result);
         Assert.Equal(entity.Id, result!.Id);
@@ -90,7 +107,20 @@ public sealed class DeviationServiceTests
         _repoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
                  .ReturnsAsync((Deviation?)null);
 
-        var result = await _sut.GetByIdAsync(Guid.NewGuid());
+        var result = await _sut.GetByIdAsync(Guid.NewGuid(), DefaultOwnerId);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_DifferentOwner_ReturnsNull()
+    {
+        // Exists in repository but belongs to a different owner — must not be exposed
+        var entity = BuildDeviation(ownerId: DefaultOwnerId);
+        _repoMock.Setup(r => r.GetByIdAsync(entity.Id, It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(entity);
+
+        var result = await _sut.GetByIdAsync(entity.Id, OtherOwnerId);
 
         Assert.Null(result);
     }
@@ -104,7 +134,7 @@ public sealed class DeviationServiceTests
                  .ReturnsAsync((Deviation e, CancellationToken _) => e);
 
         var request = ValidRequest();
-        var (dto, errors) = await _sut.CreateAsync(request);
+        var (dto, errors) = await _sut.CreateAsync(request, DefaultOwnerId);
 
         Assert.Null(errors);
         Assert.NotNull(dto);
@@ -113,6 +143,20 @@ public sealed class DeviationServiceTests
         Assert.Equal(request.ReportedAt, dto.ReportedAt);
         Assert.True(dto.UpdatedAt > DateTimeOffset.MinValue);
         _repoMock.Verify(r => r.CreateAsync(It.IsAny<Deviation>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateAsync_StoresOwnerIdOnEntity()
+    {
+        Deviation? capturedEntity = null;
+        _repoMock.Setup(r => r.CreateAsync(It.IsAny<Deviation>(), It.IsAny<CancellationToken>()))
+                 .Callback<Deviation, CancellationToken>((e, _) => capturedEntity = e)
+                 .ReturnsAsync((Deviation e, CancellationToken _) => e);
+
+        await _sut.CreateAsync(ValidRequest(), DefaultOwnerId);
+
+        Assert.NotNull(capturedEntity);
+        Assert.Equal(DefaultOwnerId, capturedEntity!.OwnerId);
     }
 
     [Fact]
@@ -126,7 +170,7 @@ public sealed class DeviationServiceTests
             string.Empty,  // missing reportedBy
             DateTimeOffset.UtcNow);
 
-        var (dto, errors) = await _sut.CreateAsync(badRequest);
+        var (dto, errors) = await _sut.CreateAsync(badRequest, DefaultOwnerId);
 
         Assert.Null(dto);
         Assert.NotNull(errors);
@@ -143,25 +187,43 @@ public sealed class DeviationServiceTests
         _repoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
                  .ReturnsAsync((Deviation?)null);
 
-        var (dto, notFound, errors) = await _sut.UpdateAsync(Guid.NewGuid(), ValidRequest());
+        var (dto, notFound, forbidden, errors) = await _sut.UpdateAsync(Guid.NewGuid(), ValidRequest(), DefaultOwnerId);
 
         Assert.True(notFound);
+        Assert.False(forbidden);
         Assert.Null(dto);
         Assert.Null(errors);
     }
 
     [Fact]
+    public async Task UpdateAsync_DifferentOwner_ReturnsForbidden()
+    {
+        var entity = BuildDeviation(ownerId: DefaultOwnerId);
+        _repoMock.Setup(r => r.GetByIdAsync(entity.Id, It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(entity);
+
+        var (dto, notFound, forbidden, errors) = await _sut.UpdateAsync(entity.Id, ValidRequest(), OtherOwnerId);
+
+        Assert.False(notFound);
+        Assert.True(forbidden);
+        Assert.Null(dto);
+        Assert.Null(errors);
+        _repoMock.Verify(r => r.UpdateAsync(It.IsAny<Deviation>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task UpdateAsync_ValidRequest_ReturnsUpdatedDto()
     {
-        var entity = BuildDeviation();
+        var entity = BuildDeviation(ownerId: DefaultOwnerId);
         _repoMock.Setup(r => r.GetByIdAsync(entity.Id, It.IsAny<CancellationToken>()))
                  .ReturnsAsync(entity);
         _repoMock.Setup(r => r.UpdateAsync(It.IsAny<Deviation>(), It.IsAny<CancellationToken>()))
                  .ReturnsAsync((Deviation e, CancellationToken _) => e);
 
-        var (dto, notFound, errors) = await _sut.UpdateAsync(entity.Id, ValidRequest());
+        var (dto, notFound, forbidden, errors) = await _sut.UpdateAsync(entity.Id, ValidRequest(), DefaultOwnerId);
 
         Assert.False(notFound);
+        Assert.False(forbidden);
         Assert.Null(errors);
         Assert.NotNull(dto);
         _repoMock.Verify(r => r.UpdateAsync(It.IsAny<Deviation>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -170,7 +232,7 @@ public sealed class DeviationServiceTests
     [Fact]
     public async Task UpdateAsync_SetsUpdatedAtOnEntity()
     {
-        var entity = BuildDeviation();
+        var entity = BuildDeviation(ownerId: DefaultOwnerId);
         var beforeUpdate = entity.UpdatedAt;
 
         _repoMock.Setup(r => r.GetByIdAsync(entity.Id, It.IsAny<CancellationToken>()))
@@ -179,7 +241,7 @@ public sealed class DeviationServiceTests
                  .ReturnsAsync((Deviation e, CancellationToken _) => e);
 
         await Task.Delay(10); // Ensure time advances
-        await _sut.UpdateAsync(entity.Id, ValidRequest());
+        await _sut.UpdateAsync(entity.Id, ValidRequest(), DefaultOwnerId);
 
         Assert.True(entity.UpdatedAt >= beforeUpdate);
     }
@@ -189,10 +251,11 @@ public sealed class DeviationServiceTests
     {
         var badRequest = new SaveDeviationRequest(string.Empty, "", DeviationSeverity.Low, DeviationStatus.Open, string.Empty, DateTimeOffset.UtcNow);
 
-        var (dto, notFound, errors) = await _sut.UpdateAsync(Guid.NewGuid(), badRequest);
+        var (dto, notFound, forbidden, errors) = await _sut.UpdateAsync(Guid.NewGuid(), badRequest, DefaultOwnerId);
 
         Assert.Null(dto);
         Assert.False(notFound);
+        Assert.False(forbidden);
         Assert.NotNull(errors);
         Assert.True(errors!.ContainsKey("title"));
     }
@@ -200,26 +263,44 @@ public sealed class DeviationServiceTests
     // ─── Delete ───────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task DeleteAsync_ExistingId_ReturnsTrue()
+    public async Task DeleteAsync_ExistingId_SameOwner_ReturnsDeleted()
     {
-        var id = Guid.NewGuid();
-        _repoMock.Setup(r => r.DeleteAsync(id, It.IsAny<CancellationToken>()))
+        var entity = BuildDeviation(ownerId: DefaultOwnerId);
+        _repoMock.Setup(r => r.GetByIdAsync(entity.Id, It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(entity);
+        _repoMock.Setup(r => r.DeleteAsync(entity.Id, It.IsAny<CancellationToken>()))
                  .ReturnsAsync(true);
 
-        var result = await _sut.DeleteAsync(id);
+        var (deleted, forbidden) = await _sut.DeleteAsync(entity.Id, DefaultOwnerId);
 
-        Assert.True(result);
-        _repoMock.Verify(r => r.DeleteAsync(id, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.True(deleted);
+        Assert.False(forbidden);
+        _repoMock.Verify(r => r.DeleteAsync(entity.Id, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task DeleteAsync_NonExistingId_ReturnsFalse()
+    public async Task DeleteAsync_DifferentOwner_ReturnsForbidden()
     {
-        _repoMock.Setup(r => r.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-                 .ReturnsAsync(false);
+        var entity = BuildDeviation(ownerId: DefaultOwnerId);
+        _repoMock.Setup(r => r.GetByIdAsync(entity.Id, It.IsAny<CancellationToken>()))
+                 .ReturnsAsync(entity);
 
-        var result = await _sut.DeleteAsync(Guid.NewGuid());
+        var (deleted, forbidden) = await _sut.DeleteAsync(entity.Id, OtherOwnerId);
 
-        Assert.False(result);
+        Assert.False(deleted);
+        Assert.True(forbidden);
+        _repoMock.Verify(r => r.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_NonExistingId_ReturnsNotDeleted()
+    {
+        _repoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync((Deviation?)null);
+
+        var (deleted, forbidden) = await _sut.DeleteAsync(Guid.NewGuid(), DefaultOwnerId);
+
+        Assert.False(deleted);
+        Assert.False(forbidden);
     }
 }

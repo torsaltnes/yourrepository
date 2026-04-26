@@ -1,8 +1,11 @@
 using DeviationManagement.Infrastructure;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// CORS
+// ── CORS ──────────────────────────────────────────────────────────────────────
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? ["http://localhost:4200"];
 
@@ -16,7 +19,28 @@ builder.Services.AddCors(options =>
     });
 });
 
-// MVC / API
+// ── Authentication / Authorization ───────────────────────────────────────────
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(5)
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+// ── MVC / API ─────────────────────────────────────────────────────────────────
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -27,7 +51,7 @@ builder.Services.AddControllers()
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 
-// Application + Infrastructure
+// ── Application + Infrastructure ──────────────────────────────────────────────
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructure();
 
@@ -42,6 +66,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("FrontendPolicy");
+
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();

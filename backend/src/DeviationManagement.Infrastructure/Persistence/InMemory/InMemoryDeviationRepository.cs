@@ -49,5 +49,6 @@ public sealed class InMemoryDeviationRepository : IDeviationRepository
         source.Status,
         source.ReportedBy,
         source.ReportedAt,
-        source.UpdatedAt);
+        source.UpdatedAt,
+        source.OwnerId);
 }

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using DeviationManagement.Api.Contracts.Requests;
 using DeviationManagement.Api.Controllers;
 using DeviationManagement.Application.Abstractions.Services;
@@ -12,6 +13,8 @@ namespace DeviationManagement.UnitTests.Api.Controllers;
 
 public sealed class DeviationsControllerTests
 {
+    private const string TestOwnerId = "test-owner-sub-001";
+
     private readonly Mock<IDeviationService> _serviceMock;
     private readonly DeviationsController _sut;
 
@@ -19,10 +22,19 @@ public sealed class DeviationsControllerTests
     {
         _serviceMock = new Mock<IDeviationService>();
         _sut = new DeviationsController(_serviceMock.Object);
-        // Provide HttpContext so StatusCodes can be resolved
+
+        // Set up an authenticated user principal with the expected NameIdentifier claim
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, TestOwnerId),
+            new Claim(ClaimTypes.Name, "Test User")
+        };
+        var identity = new ClaimsIdentity(claims, "TestScheme");
+        var principal = new ClaimsPrincipal(identity);
+
         _sut.ControllerContext = new ControllerContext
         {
-            HttpContext = new DefaultHttpContext()
+            HttpContext = new DefaultHttpContext { User = principal }
         };
     }
 
@@ -50,7 +62,7 @@ public sealed class DeviationsControllerTests
     public async Task GetAll_ReturnsOkWithItems()
     {
         var dtos = new List<DeviationDto> { BuildDto(), BuildDto() };
-        _serviceMock.Setup(s => s.GetAllAsync(It.IsAny<CancellationToken>()))
+        _serviceMock.Setup(s => s.GetAllAsync(TestOwnerId, It.IsAny<CancellationToken>()))
                     .ReturnsAsync(dtos);
 
         var result = await _sut.GetAll(CancellationToken.None);
@@ -59,13 +71,24 @@ public sealed class DeviationsControllerTests
         Assert.NotNull(ok.Value);
     }
 
+    [Fact]
+    public async Task GetAll_PassesOwnerIdToService()
+    {
+        _serviceMock.Setup(s => s.GetAllAsync(TestOwnerId, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new List<DeviationDto>());
+
+        await _sut.GetAll(CancellationToken.None);
+
+        _serviceMock.Verify(s => s.GetAllAsync(TestOwnerId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     // ─── GET /api/deviations/{id} ─────────────────────────────────────────────
 
     [Fact]
     public async Task GetById_ExistingId_ReturnsOk()
     {
         var dto = BuildDto();
-        _serviceMock.Setup(s => s.GetByIdAsync(dto.Id, It.IsAny<CancellationToken>()))
+        _serviceMock.Setup(s => s.GetByIdAsync(dto.Id, TestOwnerId, It.IsAny<CancellationToken>()))
                     .ReturnsAsync(dto);
 
         var result = await _sut.GetById(dto.Id, CancellationToken.None);
@@ -76,7 +99,7 @@ public sealed class DeviationsControllerTests
     [Fact]
     public async Task GetById_MissingId_ReturnsNotFoundWithProblemDetails()
     {
-        _serviceMock.Setup(s => s.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+        _serviceMock.Setup(s => s.GetByIdAsync(It.IsAny<Guid>(), TestOwnerId, It.IsAny<CancellationToken>()))
                     .ReturnsAsync((DeviationDto?)null);
 
         var result = await _sut.GetById(Guid.NewGuid(), CancellationToken.None);
@@ -92,8 +115,9 @@ public sealed class DeviationsControllerTests
     public async Task Create_ValidRequest_ReturnsCreatedAtAction()
     {
         var dto = BuildDto();
-        _serviceMock.Setup(s => s.CreateAsync(It.IsAny<SaveDeviationRequest>(), It.IsAny<CancellationToken>()))
-                    .ReturnsAsync((dto, (Dictionary<string, string[]>?)null));
+        _serviceMock
+            .Setup(s => s.CreateAsync(It.IsAny<SaveDeviationRequest>(), TestOwnerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((dto, (Dictionary<string, string[]>?)null));
 
         var result = await _sut.Create(ValidApiRequest(), CancellationToken.None);
 
@@ -106,8 +130,9 @@ public sealed class DeviationsControllerTests
     public async Task Create_InvalidRequest_ReturnsBadRequestWithValidationProblemDetails()
     {
         var errors = new Dictionary<string, string[]> { ["title"] = ["Title is required."] };
-        _serviceMock.Setup(s => s.CreateAsync(It.IsAny<SaveDeviationRequest>(), It.IsAny<CancellationToken>()))
-                    .ReturnsAsync(((DeviationDto?)null, errors));
+        _serviceMock
+            .Setup(s => s.CreateAsync(It.IsAny<SaveDeviationRequest>(), TestOwnerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((DeviationDto?)null, errors));
 
         var result = await _sut.Create(ValidApiRequest(), CancellationToken.None);
 
@@ -122,8 +147,9 @@ public sealed class DeviationsControllerTests
     public async Task Update_ValidRequest_ReturnsOk()
     {
         var dto = BuildDto();
-        _serviceMock.Setup(s => s.UpdateAsync(dto.Id, It.IsAny<SaveDeviationRequest>(), It.IsAny<CancellationToken>()))
-                    .ReturnsAsync((dto, false, (Dictionary<string, string[]>?)null));
+        _serviceMock
+            .Setup(s => s.UpdateAsync(dto.Id, It.IsAny<SaveDeviationRequest>(), TestOwnerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((dto, false, false, (Dictionary<string, string[]>?)null));
 
         var result = await _sut.Update(dto.Id, ValidApiRequest(), CancellationToken.None);
 
@@ -133,8 +159,9 @@ public sealed class DeviationsControllerTests
     [Fact]
     public async Task Update_NotFound_ReturnsNotFoundWithProblemDetails()
     {
-        _serviceMock.Setup(s => s.UpdateAsync(It.IsAny<Guid>(), It.IsAny<SaveDeviationRequest>(), It.IsAny<CancellationToken>()))
-                    .ReturnsAsync(((DeviationDto?)null, true, (Dictionary<string, string[]>?)null));
+        _serviceMock
+            .Setup(s => s.UpdateAsync(It.IsAny<Guid>(), It.IsAny<SaveDeviationRequest>(), TestOwnerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((DeviationDto?)null, true, false, (Dictionary<string, string[]>?)null));
 
         var result = await _sut.Update(Guid.NewGuid(), ValidApiRequest(), CancellationToken.None);
 
@@ -144,11 +171,27 @@ public sealed class DeviationsControllerTests
     }
 
     [Fact]
+    public async Task Update_Forbidden_Returns403WithProblemDetails()
+    {
+        _serviceMock
+            .Setup(s => s.UpdateAsync(It.IsAny<Guid>(), It.IsAny<SaveDeviationRequest>(), TestOwnerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((DeviationDto?)null, false, true, (Dictionary<string, string[]>?)null));
+
+        var result = await _sut.Update(Guid.NewGuid(), ValidApiRequest(), CancellationToken.None);
+
+        var objResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(403, objResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(objResult.Value);
+        Assert.Equal(403, problem.Status);
+    }
+
+    [Fact]
     public async Task Update_InvalidRequest_ReturnsBadRequestWithValidationProblemDetails()
     {
         var errors = new Dictionary<string, string[]> { ["title"] = ["Title is required."] };
-        _serviceMock.Setup(s => s.UpdateAsync(It.IsAny<Guid>(), It.IsAny<SaveDeviationRequest>(), It.IsAny<CancellationToken>()))
-                    .ReturnsAsync(((DeviationDto?)null, false, errors));
+        _serviceMock
+            .Setup(s => s.UpdateAsync(It.IsAny<Guid>(), It.IsAny<SaveDeviationRequest>(), TestOwnerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(((DeviationDto?)null, false, false, errors));
 
         var result = await _sut.Update(Guid.NewGuid(), ValidApiRequest(), CancellationToken.None);
 
@@ -163,8 +206,8 @@ public sealed class DeviationsControllerTests
     public async Task Delete_ExistingId_ReturnsNoContent()
     {
         var id = Guid.NewGuid();
-        _serviceMock.Setup(s => s.DeleteAsync(id, It.IsAny<CancellationToken>()))
-                    .ReturnsAsync(true);
+        _serviceMock.Setup(s => s.DeleteAsync(id, TestOwnerId, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync((true, false));
 
         var result = await _sut.Delete(id, CancellationToken.None);
 
@@ -174,13 +217,27 @@ public sealed class DeviationsControllerTests
     [Fact]
     public async Task Delete_MissingId_ReturnsNotFoundWithProblemDetails()
     {
-        _serviceMock.Setup(s => s.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-                    .ReturnsAsync(false);
+        _serviceMock.Setup(s => s.DeleteAsync(It.IsAny<Guid>(), TestOwnerId, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync((false, false));
 
         var result = await _sut.Delete(Guid.NewGuid(), CancellationToken.None);
 
         var notFound = Assert.IsType<NotFoundObjectResult>(result);
         var problem = Assert.IsType<ProblemDetails>(notFound.Value);
         Assert.Equal(404, problem.Status);
+    }
+
+    [Fact]
+    public async Task Delete_Forbidden_Returns403WithProblemDetails()
+    {
+        _serviceMock.Setup(s => s.DeleteAsync(It.IsAny<Guid>(), TestOwnerId, It.IsAny<CancellationToken>()))
+                    .ReturnsAsync((false, true));
+
+        var result = await _sut.Delete(Guid.NewGuid(), CancellationToken.None);
+
+        var objResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(403, objResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(objResult.Value);
+        Assert.Equal(403, problem.Status);
     }
 }

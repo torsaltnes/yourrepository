@@ -10,20 +10,30 @@ public sealed class DeviationService(
     IDeviationRepository repository,
     DeviationValidator validator) : IDeviationService
 {
-    public async Task<IReadOnlyCollection<DeviationDto>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyCollection<DeviationDto>> GetAllAsync(
+        string ownerId,
+        CancellationToken cancellationToken = default)
     {
         var entities = await repository.GetAllAsync(cancellationToken);
-        return [.. entities.Select(ToDto)];
+        return [.. entities.Where(e => e.OwnerId == ownerId).Select(ToDto)];
     }
 
-    public async Task<DeviationDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<DeviationDto?> GetByIdAsync(
+        Guid id,
+        string ownerId,
+        CancellationToken cancellationToken = default)
     {
         var entity = await repository.GetByIdAsync(id, cancellationToken);
-        return entity is null ? null : ToDto(entity);
+        // Return null for both "not found" and "different owner" to prevent information leakage
+        if (entity is null || entity.OwnerId != ownerId)
+            return null;
+
+        return ToDto(entity);
     }
 
     public async Task<(DeviationDto? Dto, Dictionary<string, string[]>? ValidationErrors)> CreateAsync(
         SaveDeviationRequest request,
+        string ownerId,
         CancellationToken cancellationToken = default)
     {
         var validationErrors = validator.ValidateForSave(request);
@@ -39,24 +49,29 @@ public sealed class DeviationService(
             request.Status,
             request.ReportedBy,
             request.ReportedAt,
-            now);
+            now,
+            ownerId);
 
         var created = await repository.CreateAsync(entity, cancellationToken);
         return (ToDto(created), null);
     }
 
-    public async Task<(DeviationDto? Dto, bool NotFound, Dictionary<string, string[]>? ValidationErrors)> UpdateAsync(
+    public async Task<(DeviationDto? Dto, bool NotFound, bool Forbidden, Dictionary<string, string[]>? ValidationErrors)> UpdateAsync(
         Guid id,
         SaveDeviationRequest request,
+        string ownerId,
         CancellationToken cancellationToken = default)
     {
         var validationErrors = validator.ValidateForSave(request);
         if (validationErrors is not null)
-            return (null, false, validationErrors);
+            return (null, false, false, validationErrors);
 
         var existing = await repository.GetByIdAsync(id, cancellationToken);
         if (existing is null)
-            return (null, true, null);
+            return (null, true, false, null);
+
+        if (existing.OwnerId != ownerId)
+            return (null, false, true, null);
 
         existing.Update(
             request.Title,
@@ -67,12 +82,23 @@ public sealed class DeviationService(
             request.ReportedAt);
 
         var updated = await repository.UpdateAsync(existing, cancellationToken);
-        return updated is null ? (null, true, null) : (ToDto(updated), false, null);
+        return updated is null ? (null, true, false, null) : (ToDto(updated), false, false, null);
     }
 
-    public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<(bool Deleted, bool Forbidden)> DeleteAsync(
+        Guid id,
+        string ownerId,
+        CancellationToken cancellationToken = default)
     {
-        return await repository.DeleteAsync(id, cancellationToken);
+        var entity = await repository.GetByIdAsync(id, cancellationToken);
+        if (entity is null)
+            return (false, false);
+
+        if (entity.OwnerId != ownerId)
+            return (false, true);
+
+        var deleted = await repository.DeleteAsync(id, cancellationToken);
+        return (deleted, false);
     }
 
     private static DeviationDto ToDto(Deviation entity) => new(

@@ -13,6 +13,12 @@ public sealed class Deviation
     public DateTimeOffset ReportedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
 
+    /// <summary>
+    /// The subject identifier (JWT 'sub' claim) of the user who created this deviation.
+    /// Used for object-level ownership checks.
+    /// </summary>
+    public string OwnerId { get; private set; } = string.Empty;
+
     // EF / serializer constructor
     private Deviation() { }
 
@@ -24,7 +30,8 @@ public sealed class Deviation
         DeviationStatus status,
         string reportedBy,
         DateTimeOffset reportedAt,
-        DateTimeOffset updatedAt)
+        DateTimeOffset updatedAt,
+        string ownerId)
     {
         Id = id;
         Title = title;
@@ -34,6 +41,7 @@ public sealed class Deviation
         ReportedBy = reportedBy;
         ReportedAt = reportedAt;
         UpdatedAt = updatedAt;
+        OwnerId = ownerId;
     }
 
     public void Update(
