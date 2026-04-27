@@ -1,3 +1,4 @@
+using GreenfieldArchitecture.Api.Filters;
 using GreenfieldArchitecture.Application.Profile.Abstractions;
 using GreenfieldArchitecture.Application.Profile.Contracts;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -6,12 +7,19 @@ namespace GreenfieldArchitecture.Api.Endpoints;
 
 /// <summary>
 /// Minimal API endpoints for the employee competence profile slice.
+/// All routes require a valid caller identity because every operation reads or
+/// writes data that belongs exclusively to the current employee (OWASP A01).
 /// </summary>
 public static class ProfileEndpoints
 {
     public static IEndpointRouteBuilder MapProfileEndpoints(this IEndpointRouteBuilder routes)
     {
-        var group = routes.MapGroup("/api/profile").WithTags("Profile");
+        // Apply RequireUserIdentityFilter to the whole group: every profile operation
+        // is personal data and must be scoped to an identified caller.
+        var group = routes
+            .MapGroup("/api/profile")
+            .WithTags("Profile")
+            .AddEndpointFilter<RequireUserIdentityFilter>();
 
         // ── Profile ──────────────────────────────────────────────────────────
         group.MapGet("/", GetProfileAsync)

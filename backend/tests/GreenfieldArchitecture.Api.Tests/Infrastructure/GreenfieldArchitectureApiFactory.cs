@@ -13,4 +13,19 @@ public sealed class GreenfieldArchitectureApiFactory : WebApplicationFactory<Pro
     {
         builder.UseEnvironment(Environments.Development);
     }
+
+    /// <summary>
+    /// Creates an <see cref="HttpClient"/> pre-configured with the
+    /// <c>X-Employee-Id</c> identity header so that endpoints protected by
+    /// <c>RequireUserIdentityFilter</c> accept the request.
+    /// </summary>
+    /// <param name="employeeId">
+    /// The employee identity to impersonate. Defaults to <c>employee-001</c>.
+    /// </param>
+    public HttpClient CreateAuthenticatedClient(string employeeId = "employee-001")
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Add("X-Employee-Id", employeeId);
+        return client;
+    }
 }

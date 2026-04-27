@@ -1,3 +1,4 @@
+using GreenfieldArchitecture.Api.Filters;
 using GreenfieldArchitecture.Application.Deviations.Abstractions;
 using GreenfieldArchitecture.Application.Deviations.Contracts;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -13,6 +14,7 @@ public static class DeviationEndpoints
     {
         var group = routes.MapGroup("/api/deviations").WithTags("Deviations");
 
+        // Read endpoints are intentionally left open (shared, non-sensitive data).
         group.MapGet("/", GetAllAsync)
             .WithName("GetAllDeviations")
             .WithSummary("Returns all deviations ordered by most recently updated.");
@@ -21,17 +23,22 @@ public static class DeviationEndpoints
             .WithName("GetDeviationById")
             .WithSummary("Returns a single deviation by ID.");
 
+        // Mutation endpoints require a verified caller identity to prevent
+        // anonymous tampering with shared deviation records (OWASP A01).
         group.MapPost("/", CreateAsync)
             .WithName("CreateDeviation")
-            .WithSummary("Creates a new deviation.");
+            .WithSummary("Creates a new deviation.")
+            .AddEndpointFilter<RequireUserIdentityFilter>();
 
         group.MapPut("/{id:guid}", UpdateAsync)
             .WithName("UpdateDeviation")
-            .WithSummary("Updates an existing deviation.");
+            .WithSummary("Updates an existing deviation.")
+            .AddEndpointFilter<RequireUserIdentityFilter>();
 
         group.MapDelete("/{id:guid}", DeleteAsync)
             .WithName("DeleteDeviation")
-            .WithSummary("Deletes a deviation.");
+            .WithSummary("Deletes a deviation.")
+            .AddEndpointFilter<RequireUserIdentityFilter>();
 
         return routes;
     }

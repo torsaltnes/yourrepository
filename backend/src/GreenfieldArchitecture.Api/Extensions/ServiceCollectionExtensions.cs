@@ -1,3 +1,4 @@
+using GreenfieldArchitecture.Api.Context;
 using GreenfieldArchitecture.Application.Abstractions.Health;
 using GreenfieldArchitecture.Application.Deviations.Abstractions;
 using GreenfieldArchitecture.Application.Deviations.Services;
@@ -6,7 +7,6 @@ using GreenfieldArchitecture.Application.Profile.Abstractions;
 using GreenfieldArchitecture.Application.Profile.Services;
 using GreenfieldArchitecture.Infrastructure.Deviations.Repositories;
 using GreenfieldArchitecture.Infrastructure.Health;
-using GreenfieldArchitecture.Infrastructure.Profile;
 using GreenfieldArchitecture.Infrastructure.Profile.Repositories;
 using System.Reflection;
 
@@ -23,6 +23,9 @@ public static class ServiceCollectionExtensions
         IHostEnvironment environment)
     {
         services.AddSingleton(TimeProvider.System);
+
+        // Required for HttpContextCurrentUserContext to resolve per-request identity.
+        services.AddHttpContextAccessor();
 
         // Health
         services.AddScoped<IHealthService, HealthService>();
@@ -49,9 +52,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDeviationRepository, InMemoryDeviationRepository>();
         services.AddScoped<IDeviationService, DeviationService>();
 
-        // Profile — repository is singleton (in-memory store must outlive request scopes)
+        // Profile — repository is singleton (in-memory store must outlive request scopes).
+        // ICurrentUserContext is Scoped because it wraps IHttpContextAccessor which is
+        // request-specific; it must NOT be Singleton.
         services.AddSingleton<IEmployeeCompetenceProfileRepository, InMemoryEmployeeCompetenceProfileRepository>();
-        services.AddSingleton<ICurrentUserContext, StaticCurrentUserContext>();
+        services.AddScoped<ICurrentUserContext, HttpContextCurrentUserContext>();
         services.AddScoped<IEmployeeCompetenceProfileService, EmployeeCompetenceProfileService>();
 
         return services;

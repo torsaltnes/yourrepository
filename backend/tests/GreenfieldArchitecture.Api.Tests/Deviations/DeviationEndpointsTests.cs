@@ -19,11 +19,15 @@ public sealed class DeviationEndpointsTests : IClassFixture<GreenfieldArchitectu
         Converters = { new JsonStringEnumConverter() },
     };
 
+    // Authenticated client used for all mutation operations (POST/PUT/DELETE).
     private readonly HttpClient _client;
+    // Unauthenticated client used to verify that mutations are rejected without identity.
+    private readonly HttpClient _anonClient;
 
     public DeviationEndpointsTests(GreenfieldArchitectureApiFactory factory)
     {
-        _client = factory.CreateClient();
+        _client = factory.CreateAuthenticatedClient();
+        _anonClient = factory.CreateClient();
     }
 
     // ── GET /api/deviations ──────────────────────────────────────────────────
@@ -31,7 +35,8 @@ public sealed class DeviationEndpointsTests : IClassFixture<GreenfieldArchitectu
     [Fact]
     public async Task GetAll_Returns200WithEmptyList()
     {
-        var response = await _client.GetAsync("/api/deviations");
+        // GET is intentionally open — no identity required for read-only access.
+        var response = await _anonClient.GetAsync("/api/deviations");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -80,6 +85,21 @@ public sealed class DeviationEndpointsTests : IClassFixture<GreenfieldArchitectu
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task Post_WithoutIdentityHeader_Returns401()
+    {
+        var request = new CreateDeviationRequest(
+            Title: "Unauthorized attempt",
+            Description: "Should be blocked.",
+            Severity: DeviationSeverity.Low,
+            Status: DeviationStatus.Open,
+            ReportedBy: "anonymous");
+
+        var response = await _anonClient.PostAsJsonAsync("/api/deviations", request, JsonOptions);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
     // ── GET /api/deviations/{id} ─────────────────────────────────────────────
 
     [Fact]
@@ -87,7 +107,7 @@ public sealed class DeviationEndpointsTests : IClassFixture<GreenfieldArchitectu
     {
         var created = await CreateDeviationAsync("Batch temp exceeded");
 
-        var response = await _client.GetAsync($"/api/deviations/{created.Id}");
+        var response = await _anonClient.GetAsync($"/api/deviations/{created.Id}");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -101,7 +121,7 @@ public sealed class DeviationEndpointsTests : IClassFixture<GreenfieldArchitectu
     [Fact]
     public async Task GetById_UnknownId_Returns404()
     {
-        var response = await _client.GetAsync($"/api/deviations/{Guid.NewGuid()}");
+        var response = await _anonClient.GetAsync($"/api/deviations/{Guid.NewGuid()}");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -154,6 +174,17 @@ public sealed class DeviationEndpointsTests : IClassFixture<GreenfieldArchitectu
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task Put_WithoutIdentityHeader_Returns401()
+    {
+        var created = await CreateDeviationAsync("Deviation for 401 put test");
+
+        var request = new UpdateDeviationRequest("t", "d", DeviationSeverity.Low, DeviationStatus.Open, "u");
+        var response = await _anonClient.PutAsJsonAsync($"/api/deviations/{created.Id}", request, JsonOptions);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
     // ── DELETE /api/deviations/{id} ──────────────────────────────────────────
 
     [Fact]
@@ -174,16 +205,26 @@ public sealed class DeviationEndpointsTests : IClassFixture<GreenfieldArchitectu
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
+    [Fact]
+    public async Task Delete_WithoutIdentityHeader_Returns401()
+    {
+        var created = await CreateDeviationAsync("Deviation for 401 delete test");
+
+        var response = await _anonClient.DeleteAsync($"/api/deviations/{created.Id}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private async Task<DeviationDto> CreateDeviationAsync(string title)
     {
         var request = new CreateDeviationRequest(
             Title: title,
             Description: "Integration test deviation",
-            Severity: DeviationSeverity.Medium,
+            Severity: DeviationSeverity.Low,
             Status: DeviationStatus.Open,
-            ReportedBy: "test-runner");
+            ReportedBy: "test-user");
 
         var response = await _client.PostAsJsonAsync("/api/deviations", request, JsonOptions);
         response.EnsureSuccessStatusCode();

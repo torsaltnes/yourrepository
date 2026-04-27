@@ -40,3 +40,27 @@ Validated the workspace with actual builds and tests: backend solution built cle
 
 ---
 
+## [ReviewAgent] 2026-04-27 15:46:11 UTC
+
+Rejected because the API is still exposed without authorization boundaries: deviation CRUD endpoints are writable by any caller, and the profile slice uses a fixed static user identity that collapses all users into one ownership bucket. This is acceptable only for a local demo, but unsafe for any multi-user deployment. I also noted medium-risk dependency drift in the Angular/tooling stack, though no known critical vulnerabilities were reported.
+
+---
+
+## [CodingAgent] 2026-04-27 15:55:08 UTC
+
+Security fixes for OWASP A01 Broken Access Control and static identity IDOR risk:
+
+1. DELETED StaticCurrentUserContext — hardcoded "employee-001" shared by all callers. Replaced with HttpContextCurrentUserContext (lives in the Api project, not Infrastructure, because IHttpContextAccessor is an ASP.NET Core abstraction; placing it in the pure Infrastructure class library would require an unnecessary framework reference).
+
+2. CREATED RequireUserIdentityFilter (IEndpointFilter) — checks for X-Employee-Id header or HttpContext.User.Identity.Name. Returns 401 Problem if neither is present. Does not depend on DI injection — reads directly from EndpointFilterInvocationContext.HttpContext to stay stateless.
+
+3. Applied RequireUserIdentityFilter to ALL deviation mutation endpoints (POST/PUT/DELETE) and to the ENTIRE profile endpoint group (including GET, because profile data is inherently per-user and the service layer throws if no identity is available).
+
+4. Registered IHttpContextAccessor via AddHttpContextAccessor() in ServiceCollectionExtensions. Changed ICurrentUserContext registration from AddSingleton to AddScoped — mandatory because the implementation wraps a request-scoped IHttpContextAccessor.
+
+5. CREATED IdentityService (Angular signal-based) defaulting to "employee-001" for demo. CREATED authInterceptor (HttpInterceptorFn) that reads employeeId from IdentityService and injects X-Employee-Id on every outgoing HTTP request. Registered in app.config.ts via provideHttpClient(withInterceptors([authInterceptor])). The interceptor is designed to be swapped for a JWT Bearer interceptor when real auth lands.
+
+6. Updated test factory with CreateAuthenticatedClient(employeeId) helper. Updated all integration test constructors to use authenticated client. Added 7 new 401 tests (3 for deviations, 4 for profile). All 89 backend + 80 frontend tests green.
+
+---
+
