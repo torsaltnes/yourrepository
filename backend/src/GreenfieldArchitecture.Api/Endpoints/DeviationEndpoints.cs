@@ -164,10 +164,12 @@ public static class DeviationEndpoints
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static bool TryParseSeverity(string? value, out DeviationSeverity severity)
-        => Enum.TryParse(value, ignoreCase: true, out severity);
+        => Enum.TryParse(value, ignoreCase: true, out severity)
+           && Enum.IsDefined(typeof(DeviationSeverity), severity);
 
     private static bool TryParseStatus(string? value, out DeviationStatus status)
-        => Enum.TryParse(value, ignoreCase: true, out status);
+        => Enum.TryParse(value, ignoreCase: true, out status)
+           && Enum.IsDefined(typeof(DeviationStatus), status);
 
     private static ProblemDetails Problem(string detail) => new()
     {

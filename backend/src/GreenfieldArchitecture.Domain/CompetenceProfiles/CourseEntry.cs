@@ -85,8 +85,8 @@ public sealed class CourseEntry
         if (skills is null) return [];
 
         return [.. skills
-            .Select(s => s.Trim())
-            .Where(s => !string.IsNullOrEmpty(s))
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s!.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)];
     }
 }

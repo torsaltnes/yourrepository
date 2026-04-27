@@ -206,6 +206,25 @@ public sealed class CompetenceProfileEndpointsTests : IClassFixture<GreenfieldAr
     }
 
     [Fact]
+    public async Task PostCourse_Returns201_WhenSkillsContainNullEntries()
+    {
+        var request = new
+        {
+            name = "Secure Coding",
+            provider = "Internal",
+            completionDate = new DateOnly(2024, 4, 1),
+            skillsAcquired = new string?[] { "OWASP", null, " " },
+        };
+
+        var response = await _client.PostAsJsonAsync("/api/me/competence-profile/courses", request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var dto = await DeserializeAsync<CourseEntryDto>(response);
+        dto!.SkillsAcquired.Should().ContainSingle().Which.Should().Be("OWASP");
+    }
+
+    [Fact]
     public async Task DeleteCourse_Returns204_ForExistingEntry()
     {
         var course = await CreateCourseEntryAsync("Course to Delete", "Provider");

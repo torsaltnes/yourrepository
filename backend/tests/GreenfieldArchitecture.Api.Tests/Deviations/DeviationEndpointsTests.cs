@@ -82,6 +82,16 @@ public sealed class DeviationEndpointsTests : IClassFixture<GreenfieldArchitectu
     }
 
     [Fact]
+    public async Task PostDeviation_Returns400ForNumericSeverityValue()
+    {
+        var payload = new { title = "T", description = "D", severity = "999" };
+
+        var response = await _client.PostAsJsonAsync("/api/deviations", payload);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task PostDeviation_Returns400ForBlankTitle()
     {
         var payload = new { title = "   ", description = "D", severity = "Low" };
