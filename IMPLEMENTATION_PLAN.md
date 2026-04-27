@@ -1,510 +1,415 @@
-# IMPLEMENTATION_PLAN.md
+# FEAT-003 — Employee Competence Profile
 
-## 1. Overview
-Implement a new Deviation / Non-conformity management vertical slice across the existing .NET 10 minimal API backend and Angular 20 frontend. The backend will expose in-memory CRUD endpoints using Clean Architecture and a singleton `ConcurrentDictionary` repository. The frontend will add a standalone, signals-driven deviation management UI with responsive Tailwind CSS v4 styling. The feature must preserve the current health feature while making deviations the primary workflow.
+## 1. Goal
+Deliver a user-owned competence profile feature that allows authenticated employees to create, view, edit, and delete:
+- education entries
+- certificate entries
+- course entries
 
-## 2. Folder structure and files to create
-init-dev.sh                                                                 (create)
-init-dev.ps1                                                                (create)
+The feature must expose a clear grouped overview on the profile page and fit the current full-stack architecture:
+- backend: .NET 10 Minimal API with Clean Architecture shape
+- frontend: Angular 20 standalone application with Tailwind CSS 4
 
-backend/src/GreenfieldArchitecture.Domain/Deviations/Deviation.cs           (create)
-backend/src/GreenfieldArchitecture.Domain/Deviations/DeviationSeverity.cs   (create)
-backend/src/GreenfieldArchitecture.Domain/Deviations/DeviationStatus.cs     (create)
+## 2. Current Codebase Context
 
-backend/src/GreenfieldArchitecture.Application/Abstractions/Deviations/IDeviationRepository.cs (create)
-backend/src/GreenfieldArchitecture.Application/Abstractions/Deviations/IDeviationService.cs    (create)
-backend/src/GreenfieldArchitecture.Application/Deviations/Dtos/DeviationDto.cs                  (create)
-backend/src/GreenfieldArchitecture.Application/Deviations/Dtos/CreateDeviationRequest.cs        (create)
-backend/src/GreenfieldArchitecture.Application/Deviations/Dtos/UpdateDeviationRequest.cs        (create)
-backend/src/GreenfieldArchitecture.Application/Deviations/Commands/CreateDeviationCommand.cs     (create)
-backend/src/GreenfieldArchitecture.Application/Deviations/Commands/UpdateDeviationCommand.cs     (create)
-backend/src/GreenfieldArchitecture.Application/Deviations/Commands/DeleteDeviationCommand.cs     (create)
-backend/src/GreenfieldArchitecture.Application/Deviations/Queries/GetDeviationByIdQuery.cs       (create)
-backend/src/GreenfieldArchitecture.Application/Deviations/Queries/ListDeviationsQuery.cs         (create)
-backend/src/GreenfieldArchitecture.Application/Deviations/Services/DeviationService.cs           (create)
+### Backend
+- Solution already follows `Domain -> Application -> Infrastructure -> Api`.
+- API uses Minimal APIs and centralized DI registration.
+- Existing persistence appears to be in-memory only.
+- Tests already exist at application and API levels.
+- JWT/auth claim-based access exists, but no dedicated current-user abstraction was identified.
 
-backend/src/GreenfieldArchitecture.Infrastructure/Deviations/InMemoryDeviationRepository.cs      (create)
+### Frontend
+- Angular `20.3.x` with standalone components and lazy-loaded feature routes.
+- Tailwind CSS `4.2` is already installed with CSS import-based setup.
+- Existing features are organized under `src/app/features`.
+- Current styling approach uses Tailwind utility classes directly in templates.
 
-backend/src/GreenfieldArchitecture.Api/Program.cs                                                 (modify)
-backend/src/GreenfieldArchitecture.Api/Extensions/ServiceCollectionExtensions.cs                  (modify)
-backend/src/GreenfieldArchitecture.Api/Endpoints/DeviationEndpoints.cs                            (create)
-backend/src/GreenfieldArchitecture.Api/Properties/launchSettings.json                             (modify)
+## 3. Scope and Assumptions
+- Feature is user-self-service only: users manage their own competence profile, not other employees’ data.
+- The profile overview groups entries by type: Education, Certificates, Courses.
+- `skills acquired` for courses should be stored as a string collection, not a single free-text blob, to support future search/filtering.
+- Because current infrastructure is in-memory, this plan keeps repository contracts persistence-agnostic and recommends an in-memory implementation for parity plus a clearly isolated path to durable persistence later.
+- If production durability is required immediately, replace the in-memory repository with a database-backed implementation before release.
 
-backend/tests/GreenfieldArchitecture.Application.Tests/Deviations/DeviationServiceTests.cs        (create)
-backend/tests/GreenfieldArchitecture.Api.Tests/Infrastructure/GreenfieldArchitectureApiFactory.cs (modify)
-backend/tests/GreenfieldArchitecture.Api.Tests/Deviations/DeviationEndpointsTests.cs              (create)
+## 4. Architectural Decisions
 
-frontend/package.json                                                                              (modify)
-frontend/package-lock.json                                                                         (modify)
-frontend/tsconfig.spec.json                                                                        (modify)
-frontend/src/styles.css                                                                            (modify)
-frontend/src/app/app.component.ts                                                                  (modify)
-frontend/src/app/app.component.spec.ts                                                             (modify)
-frontend/src/app/app.routes.ts                                                                     (modify)
-frontend/src/app/core/models/deviation.model.ts                                                    (create)
-frontend/src/app/core/services/deviation-api.service.ts                                            (create)
-frontend/src/app/core/services/deviation-store.service.ts                                          (create)
-frontend/src/app/core/services/deviation-store.service.spec.ts                                     (create)
-frontend/src/app/features/deviations/deviation-form.component.ts                                   (create)
-frontend/src/app/features/deviations/deviation-form.component.spec.ts                              (create)
-frontend/src/app/features/deviations/deviations-page.component.ts                                  (create)
-frontend/src/app/features/deviations/deviations-page.component.spec.ts                             (create)
+### AD-1: Model the feature as a profile aggregate with typed child collections
+Use a single `CompetenceProfile` aggregate per employee containing three typed collections:
+- `EducationEntry`
+- `CertificateEntry`
+- `CourseEntry`
 
-## 3. Detailed implementation instructions per file
+Rationale:
+- matches the UI requirement of a grouped profile overview
+- keeps ownership enforcement simple
+- allows a single read model for the profile page
+- reduces duplication versus three unrelated top-level repositories
 
-### init-dev.sh
-- Bash bootstrap script for macOS/Linux.
-- Use the required template, adapted to this repository:
-  - `dotnet restore backend/GreenfieldArchitecture.sln`
-  - `npm --prefix frontend install`
-  - final instruction should point developers to `dotnet run --project backend/src/GreenfieldArchitecture.Api`.
-- Keep `set -euo pipefail` and the HTTPS dev certificate trust step.
+### AD-2: Use a dedicated current-user abstraction
+Introduce an application/API abstraction such as `ICurrentUserContext` to resolve the authenticated employee identifier from JWT claims.
 
-### init-dev.ps1
-- PowerShell bootstrap script for Windows.
-- Use the required template, adapted to this repository:
-  - `dotnet restore backend/GreenfieldArchitecture.sln`
-  - npm install under `frontend`
-  - final instruction should point developers to `dotnet run --project backend/src/GreenfieldArchitecture.Api`.
+Rationale:
+- removes claim parsing from endpoints and services
+- simplifies tests
+- keeps ownership rules consistent across all profile operations
 
-### backend/src/GreenfieldArchitecture.Domain/Deviations/Deviation.cs
-- Create domain type `Deviation` as a sealed immutable domain model.
-- Recommended shape:
-  - `Guid Id`
-  - `string Title`
-  - `string Description`
-  - `DeviationSeverity Severity`
-  - `DeviationStatus Status`
-  - `DateTimeOffset CreatedAtUtc`
-  - `DateTimeOffset LastModifiedAtUtc`
-- Add static factory/member methods to enforce invariants:
-  - `Create(...)`
-  - `UpdateDetails(...)`
-- Validate title/description with `ArgumentException.ThrowIfNullOrWhiteSpace`.
-- Keep domain logic free of HTTP concerns.
+### AD-3: Keep CRUD commands typed per entry kind
+Expose typed commands/DTOs for education, certificates, and courses instead of a generic polymorphic payload.
 
-### backend/src/GreenfieldArchitecture.Domain/Deviations/DeviationSeverity.cs
-- Create enum `DeviationSeverity`.
-- Use ordered values suitable for UI/API filtering later: `Low`, `Medium`, `High`, `Critical`.
+Rationale:
+- acceptance criteria define distinct fields per entry type
+- avoids weak validation and complex discriminators
+- keeps Angular forms simpler and explicit
 
-### backend/src/GreenfieldArchitecture.Domain/Deviations/DeviationStatus.cs
-- Create enum `DeviationStatus`.
-- Use lifecycle-oriented values: `Open`, `Investigating`, `Resolved`, `Closed`.
+### AD-4: Use Angular signals for UI state, reactive forms for editing
+Use signals for page/store state and Reactive Forms for create/edit forms.
 
-### backend/src/GreenfieldArchitecture.Application/Abstractions/Deviations/IDeviationRepository.cs
-- Define persistence abstraction for the in-memory store.
-- Methods:
-  - `Task<IReadOnlyList<Deviation>> ListAsync(CancellationToken cancellationToken)`
-  - `Task<Deviation?> GetByIdAsync(Guid id, CancellationToken cancellationToken)`
-  - `Task AddAsync(Deviation deviation, CancellationToken cancellationToken)`
-  - `Task<bool> UpdateAsync(Deviation deviation, CancellationToken cancellationToken)`
-  - `Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken)`
-- Keep the interface in Application so Infrastructure remains replaceable later.
+Rationale:
+- aligns with Angular 20 signal-first guidance
+- avoids BehaviorSubject-based local state
+- keeps form validation ergonomic for CRUD forms
 
-### backend/src/GreenfieldArchitecture.Application/Abstractions/Deviations/IDeviationService.cs
-- Define use-case abstraction consumed by Minimal API handlers.
-- Methods:
-  - `Task<IReadOnlyList<DeviationDto>> ListAsync(ListDeviationsQuery query, CancellationToken cancellationToken)`
-  - `Task<DeviationDto?> GetByIdAsync(GetDeviationByIdQuery query, CancellationToken cancellationToken)`
-  - `Task<DeviationDto> CreateAsync(CreateDeviationCommand command, CancellationToken cancellationToken)`
-  - `Task<DeviationDto?> UpdateAsync(UpdateDeviationCommand command, CancellationToken cancellationToken)`
-  - `Task<bool> DeleteAsync(DeleteDeviationCommand command, CancellationToken cancellationToken)`
+## 5. Backend Design
 
-### backend/src/GreenfieldArchitecture.Application/Deviations/Dtos/DeviationDto.cs
-- Create sealed record `DeviationDto`.
-- Mirror the API response contract:
-  - `Guid Id`
-  - `string Title`
-  - `string Description`
-  - `string Severity`
-  - `string Status`
-  - `DateTimeOffset CreatedAtUtc`
-  - `DateTimeOffset LastModifiedAtUtc`
-- Keep enum values serialized as strings for frontend simplicity.
+### 5.1 Domain Layer
+Create a new feature area, e.g. `CompetenceProfiles`, containing:
+- `CompetenceProfile` aggregate root
+- `EducationEntry`
+- `CertificateEntry`
+- `CourseEntry`
 
-### backend/src/GreenfieldArchitecture.Application/Deviations/Dtos/CreateDeviationRequest.cs
-- Create sealed record `CreateDeviationRequest` for POST bodies.
-- Fields:
-  - `string Title`
-  - `string Description`
-  - `string Severity`
-  - optional `string? Status` (default to `Open` when omitted)
-- This is the transport contract only; map it to `CreateDeviationCommand` in the endpoint layer.
+Recommended fields:
 
-### backend/src/GreenfieldArchitecture.Application/Deviations/Dtos/UpdateDeviationRequest.cs
-- Create sealed record `UpdateDeviationRequest` for PUT bodies.
-- Fields:
-  - `Guid Id`
-  - `string Title`
-  - `string Description`
-  - `string Severity`
-  - `string Status`
-- Endpoint must reject route/body ID mismatches with HTTP 400.
+#### CompetenceProfile
+- `EmployeeId`
+- `IReadOnlyList<EducationEntry>`
+- `IReadOnlyList<CertificateEntry>`
+- `IReadOnlyList<CourseEntry>`
 
-### backend/src/GreenfieldArchitecture.Application/Deviations/Commands/CreateDeviationCommand.cs
-- Create sealed record `CreateDeviationCommand`.
-- Fields should match the business write model after transport mapping.
-- Parse and normalize severity/status before persistence.
+#### EducationEntry
+- `Id`
+- `Degree`
+- `Institution`
+- `GraduationYear`
+- `Notes`
+- `CreatedUtc`
+- `UpdatedUtc`
 
-### backend/src/GreenfieldArchitecture.Application/Deviations/Commands/UpdateDeviationCommand.cs
-- Create sealed record `UpdateDeviationCommand`.
-- Include `Guid Id` plus editable fields.
+#### CertificateEntry
+- `Id`
+- `Name`
+- `IssuingOrganization`
+- `IssueDate`
+- `ExpirationDate?`
+- `CreatedUtc`
+- `UpdatedUtc`
 
-### backend/src/GreenfieldArchitecture.Application/Deviations/Commands/DeleteDeviationCommand.cs
-- Create sealed record `DeleteDeviationCommand` with `Guid Id`.
+#### CourseEntry
+- `Id`
+- `Name`
+- `Provider`
+- `CompletionDate`
+- `IReadOnlyList<string> SkillsAcquired`
+- `CreatedUtc`
+- `UpdatedUtc`
 
-### backend/src/GreenfieldArchitecture.Application/Deviations/Queries/GetDeviationByIdQuery.cs
-- Create sealed record `GetDeviationByIdQuery` with `Guid Id`.
+Domain rules:
+- all entry IDs should be stable GUIDs
+- profile ownership is defined by `EmployeeId`
+- `GraduationYear` must be within a valid range
+- `ExpirationDate` cannot be earlier than `IssueDate`
+- `SkillsAcquired` must ignore blank values and be normalized/trimmed
+- update operations must preserve entry identity and timestamps correctly
 
-### backend/src/GreenfieldArchitecture.Application/Deviations/Queries/ListDeviationsQuery.cs
-- Create sealed record `ListDeviationsQuery`.
-- Keep it empty for now, but establish a query object so status/severity filtering can be added later without changing the service signature.
+### 5.2 Application Layer
+Add:
+- repository abstraction: `ICompetenceProfileRepository`
+- service abstraction: `ICompetenceProfileService`
+- DTO records for read/write operations
+- request/response records for all CRUD operations
 
-### backend/src/GreenfieldArchitecture.Application/Deviations/Services/DeviationService.cs
-- Create sealed class `DeviationService` using a primary constructor.
-- Inject:
-  - `IDeviationRepository repository`
-  - `TimeProvider timeProvider`
-  - `ILogger<DeviationService> logger`
-- Implement all CRUD use cases.
-- Responsibilities:
-  - validate all inputs
-  - map string severity/status values to domain enums
-  - create timestamps using `timeProvider.GetUtcNow()`
-  - preserve `CreatedAtUtc` during updates
-  - update `LastModifiedAtUtc` on every write
-  - return DTO records only
-  - sort list results descending by `LastModifiedAtUtc`
-- Use structured logging templates.
-- Use `ConfigureAwait(false)` on awaited calls.
-- Use collection expressions when materializing lists.
+Recommended service surface:
+- `GetMyProfileAsync(employeeId)`
+- `AddEducationAsync(employeeId, request)`
+- `UpdateEducationAsync(employeeId, entryId, request)`
+- `DeleteEducationAsync(employeeId, entryId)`
+- equivalent methods for certificates and courses
 
-### backend/src/GreenfieldArchitecture.Infrastructure/Deviations/InMemoryDeviationRepository.cs
-- Create sealed class `InMemoryDeviationRepository` using a primary constructor only if dependencies are required; otherwise use a sealed class with a private `ConcurrentDictionary<Guid, Deviation>` field.
-- Register it as a singleton.
-- Implement `IDeviationRepository` with thread-safe CRUD operations.
-- Return defensive copies/order-stable snapshots rather than exposing dictionary internals.
-- Keep methods async-friendly (`Task.FromResult`, `Task.CompletedTask`) without blocking I/O.
-- Add an internal `Clear()` helper only if the API integration tests need repository reset; do not expose reset behavior in `IDeviationRepository`.
+Read model:
+- return a grouped `CompetenceProfileDto` containing three sorted collections
+- suggested sorting:
+  - education: `GraduationYear desc`
+  - certificates: `IssueDate desc`
+  - courses: `CompletionDate desc`
 
-### backend/src/GreenfieldArchitecture.Api/Program.cs
-- Keep existing health feature wiring.
-- Add `app.UseCors();` before endpoint mapping.
-- Replace unconditional HTTPS redirect with:
-  - `if (!app.Environment.IsDevelopment()) app.UseHttpsRedirection();`
-- Map the new feature with `app.MapDeviationEndpoints();`.
-- Keep OpenAPI in Development and keep `public partial class Program { }` for tests.
+Validation should live in application/domain boundaries, not only in the UI.
+Use record types for all DTOs and request models.
+Use `ConfigureAwait(false)` on awaited calls in non-API projects.
 
-### backend/src/GreenfieldArchitecture.Api/Extensions/ServiceCollectionExtensions.cs
-- Extend `AddProjectServices(...)`.
-- Add default CORS policy allowing:
-  - `http://localhost:4200`
-  - `https://localhost:4200`
-- Register deviation services:
-  - `AddSingleton<IDeviationRepository, InMemoryDeviationRepository>()`
-  - `AddScoped<IDeviationService, DeviationService>()`
-- Keep existing health registrations intact.
+### 5.3 Infrastructure Layer
+Add an implementation of `ICompetenceProfileRepository`.
 
-### backend/src/GreenfieldArchitecture.Api/Endpoints/DeviationEndpoints.cs
-- Create static endpoint module `DeviationEndpoints`.
-- Method: `IEndpointRouteBuilder MapDeviationEndpoints(this IEndpointRouteBuilder routes)`.
-- Create route group `routes.MapGroup("/api/deviations").WithTags("Deviations")`.
-- Add endpoints with strongly typed results:
-  - `GET /api/deviations` -> `Ok<IReadOnlyList<DeviationDto>>`
-  - `GET /api/deviations/{id:guid}` -> `Results<Ok<DeviationDto>, NotFound>`
-  - `POST /api/deviations` -> `Results<Created<DeviationDto>, BadRequest<ProblemDetails>>`
-  - `PUT /api/deviations/{id:guid}` -> `Results<Ok<DeviationDto>, NotFound, BadRequest<ProblemDetails>>`
-  - `DELETE /api/deviations/{id:guid}` -> `Results<NoContent, NotFound>`
-- Handler requirements:
-  - map request DTOs to command/query records
-  - translate validation failures to 400 responses
-  - return 404 when an item does not exist
-  - use route names and `.Produces(...)` metadata for OpenAPI
+#### Preferred near-term implementation
+- `InMemoryCompetenceProfileRepository`
+- storage keyed by `EmployeeId`
+- thread-safe collection, e.g. `ConcurrentDictionary`
 
-### backend/src/GreenfieldArchitecture.Api/Properties/launchSettings.json
-- Replace the current localhost ports with the mandated profiles:
-  - `http` profile on `http://localhost:5000`
-  - `https` profile on `https://localhost:5001;http://localhost:5000`
-- Keep `ASPNETCORE_ENVIRONMENT=Development` on both profiles.
-- Do not remove existing development convenience settings such as `dotnetRunMessages`.
+#### Future-ready design requirement
+The repository contract must not leak in-memory assumptions so it can later be replaced by a database-backed implementation without changing application services.
 
-### backend/tests/GreenfieldArchitecture.Application.Tests/Deviations/DeviationServiceTests.cs
-- Create xUnit test class `DeviationServiceTests`.
-- Use `Moq` for `IDeviationRepository` and `ILogger<DeviationService>`.
-- Use `FluentAssertions` for assertions.
-- Cover:
-  - create assigns ID and timestamps and defaults status to `Open`
-  - create rejects blank title/description
-  - list returns descending `LastModifiedAtUtc`
-  - get returns null when missing
-  - update returns null when repository item is missing
-  - update preserves `CreatedAtUtc` and changes `LastModifiedAtUtc`
-  - delete returns false when missing and true when present
-  - severity/status parsing is case-insensitive but outputs canonical strings
+Persistence risk note:
+- in-memory storage is acceptable for current project parity and local development
+- it is not sufficient for production employee profiles because data will be lost on restart
 
-### backend/tests/GreenfieldArchitecture.Api.Tests/Infrastructure/GreenfieldArchitectureApiFactory.cs
-- Modify the existing `WebApplicationFactory<Program>` helper to support isolation for deviation tests.
-- Ensure each test can start from a clean in-memory repository state.
-- Acceptable approaches:
-  - expose a helper that resolves the concrete `InMemoryDeviationRepository` and clears it before each test, or
-  - build an isolated factory/client per test using a fresh service provider.
-- Keep the factory reusable for existing health tests.
+### 5.4 API Layer
+Create a new endpoint group, for example:
+- `/api/me/competence-profile`
 
-### backend/tests/GreenfieldArchitecture.Api.Tests/Deviations/DeviationEndpointsTests.cs
-- Create integration test class `DeviationEndpointsTests` using `IClassFixture<GreenfieldArchitectureApiFactory>`.
-- Test through `HttpClient`, not direct method calls.
-- Cover:
-  - `GET /api/deviations` returns 200 and JSON array
-  - `GET /api/deviations/{id}` returns 404 for unknown ID
-  - `POST /api/deviations` returns 201, JSON body, and `Location` header
-  - `PUT /api/deviations/{id}` updates fields and returns 200
-  - `PUT` with route/body mismatch returns 400
-  - `DELETE /api/deviations/{id}` returns 204 and subsequent `GET` returns 404
-  - health endpoints still respond successfully after deviation feature registration
+Recommended endpoints:
+- `GET /api/me/competence-profile`
+- `POST /api/me/competence-profile/education`
+- `PUT /api/me/competence-profile/education/{entryId}`
+- `DELETE /api/me/competence-profile/education/{entryId}`
+- `POST /api/me/competence-profile/certificates`
+- `PUT /api/me/competence-profile/certificates/{entryId}`
+- `DELETE /api/me/competence-profile/certificates/{entryId}`
+- `POST /api/me/competence-profile/courses`
+- `PUT /api/me/competence-profile/courses/{entryId}`
+- `DELETE /api/me/competence-profile/courses/{entryId}`
 
-### frontend/package.json
-- Add `@angular/forms` aligned with the existing Angular version line (`^20.3.0`).
-- Keep existing Angular 20, Tailwind 4, Vitest, jsdom, and zone.js dependencies.
-- Do not add NgModule-era tooling or alternative state libraries.
+Implementation guidance:
+- map endpoints with `MapGroup()` and `.WithTags("Competence Profile")`
+- return `TypedResults.Ok`, `TypedResults.Created`, `TypedResults.NoContent`, `TypedResults.NotFound`, `TypedResults.ValidationProblem` as appropriate
+- resolve authenticated user via `ICurrentUserContext`
+- mark endpoints as authenticated if the existing API does not already do this globally
+- keep endpoint handlers thin; delegate business logic to application services
 
-### frontend/package-lock.json
-- Update lockfile after adding `@angular/forms`.
-- Keep it consistent with `package.json`; no manual editing strategy beyond normal npm lockfile regeneration.
+HTTP behavior:
+- `GET` returns the grouped profile payload
+- `POST` returns created entry DTO plus location metadata if route naming is already used
+- `PUT` returns updated profile or updated entry DTO
+- `DELETE` returns `204 No Content`
+- operations against non-existent entry IDs return `404`
 
-### frontend/tsconfig.spec.json
-- Keep Vitest global types.
-- Add `vitest/jsdom` to `compilerOptions.types` so DOM-oriented component tests have explicit environment typing.
-- Preserve existing Angular test tsconfig settings.
+### 5.5 Validation Rules
 
-### frontend/src/styles.css
-- Keep `@import "tailwindcss";` at the top.
-- Extend the global `@theme` block with semantic tokens for the deviation UI, for example:
-  - `--color-primary`
-  - `--color-surface`
-  - `--color-surface-muted`
-  - `--color-success`
-  - `--color-warning`
-  - `--color-danger`
-  - `--spacing-panel`
-- Use tokens that generate utility classes consumed by the new feature templates.
-- Do not introduce `tailwind.config.js`.
+#### Education
+- `Degree`: required, trimmed, max length defined centrally
+- `Institution`: required, trimmed, max length defined centrally
+- `GraduationYear`: required, reasonable range (e.g. 1900..current year + 1)
+- `Notes`: optional, bounded length
 
-### frontend/src/app/app.component.ts
-- Modify the root standalone component to present a simple application shell.
-- Keep `RouterOutlet` and `ChangeDetectionStrategy.OnPush`.
-- Add lightweight navigation links for:
-  - `Deviations`
-  - `Health`
-- Template must use built-in control flow only if conditional rendering is needed.
-- Styling should use the semantic Tailwind token utilities defined in `styles.css`.
+#### Certificate
+- `Name`: required
+- `IssuingOrganization`: required
+- `IssueDate`: required
+- `ExpirationDate`: optional, must be `>= IssueDate`
 
-### frontend/src/app/app.component.spec.ts
-- Update the existing spec to reflect the shell/navigation changes.
-- Verify the component still creates successfully and the deviation navigation link is rendered.
+#### Course
+- `Name`: required
+- `Provider`: required
+- `CompletionDate`: required
+- `SkillsAcquired`: optional but normalized into a distinct trimmed list
 
-### frontend/src/app/app.routes.ts
-- Keep standalone lazy routing with `loadComponent`.
-- Make deviations the default route:
-  - `''` redirect to `'deviations'`
-  - `'deviations'` -> `DeviationsPageComponent`
-  - `'health'` -> existing `HealthPageComponent`
-  - wildcard -> redirect to `'deviations'`
-- Do not introduce route modules.
+## 6. Frontend Design
 
-### frontend/src/app/core/models/deviation.model.ts
-- Create TypeScript models and literal unions for the frontend contract.
-- Export:
-  - `type DeviationSeverity = 'Low' | 'Medium' | 'High' | 'Critical'`
-  - `type DeviationStatus = 'Open' | 'Investigating' | 'Resolved' | 'Closed'`
-  - `interface Deviation`
-  - `interface UpsertDeviationRequest`
-  - readonly option arrays for severity and status dropdowns
-- Keep names aligned with backend DTO string values.
+### 6.1 Feature Structure
+Create a new feature folder under `frontend/src/app/features`, e.g.:
+- `competence-profile/`
+  - page component
+  - feature store/service
+  - form components
+  - section/list components
+  - API client models
 
-### frontend/src/app/core/services/deviation-api.service.ts
-- Create root service `DeviationApiService`.
-- Use `inject(HttpClient)`.
-- Keep the service stateless; it should only wrap HTTP calls:
-  - `list()`
-  - `getById(id: string)`
-  - `create(request: UpsertDeviationRequest)`
-  - `update(id: string, request: UpsertDeviationRequest & { id: string })`
-  - `delete(id: string)`
-- Use `/api/deviations` as the base path.
+Recommended component split:
+- `CompetenceProfilePageComponent` — routed container
+- `CompetenceOverviewSectionComponent` — reusable section shell
+- `EducationEntryFormComponent`
+- `CertificateEntryFormComponent`
+- `CourseEntryFormComponent`
+- `CompetenceEntryCardComponent` or type-specific card components if layouts diverge
 
-### frontend/src/app/core/services/deviation-store.service.ts
-- Create root service `DeviationStoreService` using Angular Signals as the primary state container.
-- Use `inject(DeviationApiService)`.
-- Core writable signals:
-  - `items`
-  - `selectedId`
-  - `mode` (`'view' | 'create' | 'edit'`)
-  - `loading`
-  - `saving`
-  - `deleting`
-  - `error`
-- Core computed signals:
-  - `sortedItems`
-  - `selectedDeviation`
-  - `isEmpty`
-  - `isCreateMode`
-  - `isEditMode`
-- Methods:
-  - `load()`
-  - `select(id: string)`
-  - `startCreate()`
-  - `startEdit(id: string)`
-  - `save(request: UpsertDeviationRequest)`
-  - `remove(id: string)`
-  - `cancelEditing()`
-- Implementation guidance:
-  - use async/await plus `firstValueFrom(...)` or equivalent
-  - refresh/select newly created records after save
-  - clear transient errors before each command
-  - do not use `BehaviorSubject`
+### 6.2 Routing
+Add a lazy-loaded standalone route, for example:
+- `/profile/competence`
 
-### frontend/src/app/core/services/deviation-store.service.spec.ts
-- Create service spec using Vitest and Angular TestBed.
-- Configure providers with `provideHttpClient()` and `provideHttpClientTesting()` in that order, per Angular guidance.
-- Cover:
-  - initial state
-  - load success populates `items`
-  - create success appends/selects the new deviation
-  - update success mutates the selected item in signals
-  - delete success removes the item and clears selection when necessary
-  - HTTP failure paths set the `error` signal and reset busy flags
+Route should use `loadComponent` or feature route file consistent with current Angular route organization.
 
-### frontend/src/app/features/deviations/deviation-form.component.ts
-- Create standalone presentational component `DeviationFormComponent`.
-- Use `ChangeDetectionStrategy.OnPush`.
-- Use `inject(FormBuilder)` and `ReactiveFormsModule`.
-- Use signal-based component I/O:
-  - `initialValue = input<Deviation | null>(null)`
-  - `mode = input<'create' | 'edit'>('create')`
-  - `saving = input<boolean>(false)`
-  - `submitted = output<UpsertDeviationRequest>()`
-  - `cancelled = output<void>()`
-- Form fields:
-  - title
-  - description
-  - severity
-  - status
-- Use validators for required fields.
-- Add an `effect()` to patch/reset the form when `initialValue` or `mode` changes.
-- Template rules:
-  - use `@if` for validation and mode-specific labels
-  - use semantic Tailwind classes and `gap-*` utilities
-  - no hardcoded colors in class names
+### 6.3 State Management
+Use a signal-based feature store/service, e.g. `CompetenceProfileStore`, with:
+- `profile = signal<CompetenceProfileViewModel | null>(null)`
+- `loading = signal(false)`
+- `saving = signal(false)`
+- `error = signal<string | null>(null)`
+- `hasEntries = computed(...)`
 
-### frontend/src/app/features/deviations/deviation-form.component.spec.ts
-- Create component spec.
-- Verify:
-  - form renders create and edit headings correctly
-  - incoming `initialValue` patches the form
-  - invalid form does not emit submit
-  - valid form emits normalized payload
-  - cancel button emits `cancelled`
+Responsibilities:
+- load grouped profile data from API
+- submit create/update/delete actions
+- optimistically update local state only if current project patterns allow it; otherwise refresh after mutations
+- normalize server responses for the page
 
-### frontend/src/app/features/deviations/deviations-page.component.ts
-- Create routed standalone component `DeviationsPageComponent`.
-- Use `ChangeDetectionStrategy.OnPush`, `inject(DeviationStoreService)`, and any routing helpers via `inject()` if needed.
-- On first load, trigger `store.load()`.
-- Page responsibilities:
-  - toolbar/header with feature title and create action
-  - responsive master/detail layout
-  - list of deviations using `@for (...; track deviation.id)`
-  - selected deviation summary panel in view mode
-  - embedded `DeviationFormComponent` in create/edit modes
-  - delete button with guarded confirmation flow
-  - empty, loading, and error states
-- Recommended UX:
-  - desktop: two-column layout
-  - mobile: stacked layout
-  - show status/severity badges using token-backed Tailwind classes
-  - keep existing health feature reachable from the app shell
+Do not use `BehaviorSubject` for page state.
+Use `inject()` for `HttpClient`, router utilities, and any services.
 
-### frontend/src/app/features/deviations/deviations-page.component.spec.ts
-- Create page component spec.
-- Test with the real store service plus `HttpTestingController`, or a focused store mock if simpler.
-- Cover:
-  - initial load requests `/api/deviations`
-  - empty state rendering when the list is empty
-  - list rendering and selection when data exists
-  - switching from view mode to create/edit mode
-  - successful delete removes the item from the rendered list
-  - error state renders when API calls fail
+### 6.4 Forms
+Use Angular Reactive Forms inside standalone form components.
+Signals should manage form mode and visibility state:
+- create vs edit mode
+- selected entry ID
+- dialog/drawer open state
 
-## 4. Dependencies
+Form UX requirements:
+- field-level validation messages
+- disabled submit while invalid or saving
+- cancel/reset behavior
+- clear success/failure feedback at page level
 
-### Backend NuGet packages
-No new backend packages are required; use the existing centrally managed package set already present in `backend/Directory.Packages.props`:
-- `Microsoft.AspNetCore.OpenApi` — `10.0.7`
-- `Microsoft.NET.Test.Sdk` — `18.5.0`
-- `xunit` — `2.9.3`
-- `xunit.runner.visualstudio` — `3.1.5`
-- `FluentAssertions` — `8.9.0`
-- `Moq` — `4.20.72`
-- `Microsoft.AspNetCore.Mvc.Testing` — `10.0.7`
+Suggested form-specific behavior:
+- Education: numeric year input
+- Certificate: date inputs with optional expiration date
+- Course: skills editor that converts chip-like input or comma-separated text into a normalized string array
 
-### Frontend npm packages
-Keep the existing packages and add the missing forms package needed for the CRUD editor.
-- Runtime dependencies:
-  - `@angular/common` — `^20.3.0`
-  - `@angular/compiler` — `^20.3.0`
-  - `@angular/core` — `^20.3.0`
-  - `@angular/forms` — `^20.3.0` **(add)**
-  - `@angular/platform-browser` — `^20.3.0`
-  - `@angular/router` — `^20.3.0`
-  - `rxjs` — `~7.8.0`
-  - `tailwindcss` — `^4.2.0`
-  - `zone.js` — `~0.15.0`
-- Dev dependencies used by the existing Angular/Vitest test setup:
-  - `@angular/build` — `^20.3.0`
-  - `@angular/cli` — `^20.3.0`
-  - `@angular/compiler-cli` — `^20.3.0`
-  - `@tailwindcss/postcss` — `^4.2.0`
-  - `jsdom` — `^26.0.0`
-  - `typescript` — `~5.8.0`
-  - `vitest` — `^3.1.0`
+### 6.5 Page Composition
+The profile page should render:
+- page header with feature summary
+- grouped sections for education, certificates, and courses
+- add button per section
+- empty state when a section has no entries
+- card/list presentation for each entry with edit/delete affordances
 
-## 5. Automated tests
+Template guidance:
+- use `@if`, `@else`, and `@for`
+- use `ChangeDetectionStrategy.OnPush`
+- prefer signal-based `input()`/`output()` for child component I/O
+- use `@defer` only if the final component composition becomes heavy enough to justify deferred rendering
 
-### Test files to create or modify
-- `backend/tests/GreenfieldArchitecture.Application.Tests/Deviations/DeviationServiceTests.cs` (create)
-- `backend/tests/GreenfieldArchitecture.Api.Tests/Infrastructure/GreenfieldArchitectureApiFactory.cs` (modify)
-- `backend/tests/GreenfieldArchitecture.Api.Tests/Deviations/DeviationEndpointsTests.cs` (create)
-- `frontend/src/app/app.component.spec.ts` (modify)
-- `frontend/src/app/core/services/deviation-store.service.spec.ts` (create)
-- `frontend/src/app/features/deviations/deviation-form.component.spec.ts` (create)
-- `frontend/src/app/features/deviations/deviations-page.component.spec.ts` (create)
+### 6.6 API Integration
+Create a feature-scoped API client service, e.g. `CompetenceProfileApiClient`, `providedIn: 'root'`.
 
-### Backend test expectations
-- Unit tests must verify the service-layer business rules independently from HTTP.
-- Integration tests must use `WebApplicationFactory<Program>` and real HTTP calls.
-- Verify success and failure status codes for all CRUD operations.
-- Verify the singleton in-memory repository behaves deterministically across tests by resetting state per test.
+Client methods:
+- `getProfile()`
+- `addEducation(request)` / `updateEducation(...)` / `deleteEducation(...)`
+- same for certificates and courses
 
-### Frontend test expectations
-- Keep Angular unit tests on the existing `@angular/build:unit-test` runner with `runner: vitest`.
-- `tsconfig.spec.json` must include the Vitest globals and jsdom types required for DOM-driven component tests.
-- Component tests should verify control-flow rendering, emitted events, API-backed state updates, and error/empty/loading states.
-- Use `provideHttpClient()` followed by `provideHttpClientTesting()` for specs that exercise HTTP services.
+Use typed interfaces matching backend records.
+Keep all transformation logic localized to the feature store or mapping helpers.
 
-## 6. Acceptance criteria
-- **AC-001 — Deviation data model exists.** Fulfilled by introducing a dedicated domain model plus DTO/request/command/query records carrying title, description, severity, status, and audit timestamps.
-- **AC-002 — Backend exposes deviation CRUD endpoints with proper HTTP semantics.** Fulfilled by `DeviationEndpoints` implementing `GET`, `GET by id`, `POST`, `PUT`, and `DELETE` with typed results, 200/201/204 success codes, and 400/404 error handling.
-- **AC-003 — Data persists in memory only.** Fulfilled by `InMemoryDeviationRepository` using a singleton `ConcurrentDictionary<Guid, Deviation>` registered in DI, with no database dependencies.
-- **AC-004 — Angular UI allows create, view, edit, and delete workflows.** Fulfilled by the new standalone deviations page, embedded form component, selection/detail panel, and signal-driven store service.
-- **AC-005 — Frontend uses modern Angular patterns.** Fulfilled by standalone lazy routes, `inject()`, Signals, built-in control flow (`@if`, `@for`), and zero NgModules/BehaviorSubjects.
-- **AC-006 — UI is responsive and polished.** Fulfilled by Tailwind CSS v4 token-based theming in `styles.css`, responsive grid/flex layouts, semantic badge styling, and improved app-shell navigation.
-- **AC-007 — Local frontend/backend integration works during development.** Fulfilled by adding the localhost CORS policy, standardizing launch profiles to ports 5000/5001, and keeping the Angular proxy/API paths aligned.
-- **AC-008 — Automated tests cover the new feature.** Fulfilled by xUnit/Moq/FluentAssertions backend coverage and Angular Vitest component/service specs for the new UI state flows.
+## 7. Styling and UX
 
-## 7. Bootstrap scripts
-- `init-dev.sh` and `init-dev.ps1` are created in the workspace root.
-- Both scripts must:
-  - trust the HTTPS development certificate
-  - restore `backend/GreenfieldArchitecture.sln`
-  - install npm packages in `frontend`
-  - end with a message directing developers to run `dotnet run --project backend/src/GreenfieldArchitecture.Api`
-- These scripts are part of the planned deliverable and are listed in Section 2.
+### 7.1 Tailwind CSS 4 Alignment
+Follow Tailwind 4 CSS-first rules:
+- continue using `@import "tailwindcss"`
+- define any new semantic tokens in `@theme` blocks inside CSS, not `tailwind.config.js`
+- reuse existing design tokens where possible
+- add feature-specific tokens only if the current design system lacks required spacing/color/surface primitives
+
+### 7.2 Visual Structure
+Recommended layout:
+- single-column mobile layout
+- wider desktop container with section cards/panels
+- consistent spacing via `gap-*`
+- section headers with clear hierarchy and actions aligned responsively
+- tags/chips for course skills
+- subtle empty-state and form-status messaging
+
+### 7.3 Accessibility
+- semantic headings per grouped section
+- keyboard-accessible add/edit/delete controls
+- visible focus states
+- labels for all form controls
+- validation messages tied to controls
+- avoid color-only status indicators
+
+## 8. Data Contracts
+
+### 8.1 Response DTO
+`CompetenceProfileDto`
+- `education: EducationEntryDto[]`
+- `certificates: CertificateEntryDto[]`
+- `courses: CourseEntryDto[]`
+
+### 8.2 Request DTOs
+- `CreateEducationRequest`
+- `UpdateEducationRequest`
+- `CreateCertificateRequest`
+- `UpdateCertificateRequest`
+- `CreateCourseRequest`
+- `UpdateCourseRequest`
+
+All request/response models should be C# `record` types.
+Frontend TypeScript interfaces should mirror the API contracts closely.
+
+## 9. Security and Ownership
+- all endpoints must require authentication
+- employee identity must come from token claims, never from client-submitted employee IDs
+- no endpoint should allow cross-user access
+- logs must avoid sensitive or unnecessary personal data
+- delete/update operations must first verify the entry belongs to the authenticated user’s profile
+
+## 10. Testing Strategy
+
+### 10.1 Backend Unit Tests
+Add application tests for:
+- creating profile entries when no profile exists yet
+- editing an existing education/certificate/course entry
+- deleting entries
+- validation failures for invalid dates/year/blank required fields
+- skills normalization for courses
+- sorted grouped read model behavior
+
+### 10.2 Backend API Integration Tests
+Using `WebApplicationFactory<TEntryPoint>`:
+- authenticated `GET` returns empty grouped profile for new user
+- authenticated `POST` creates each entry type successfully
+- authenticated `PUT` updates entry
+- authenticated `DELETE` removes entry
+- invalid payload returns validation error response
+- unauthenticated request returns `401`
+- user A cannot affect user B’s data
+
+### 10.3 Frontend Tests
+Add Angular/Vitest tests for:
+- grouped rendering of sections
+- empty-state rendering
+- create/edit/delete interaction flow
+- form validation behavior
+- store state transitions (`loading`, `saving`, `error`, successful reload)
+- skills parsing/normalization UI logic
+
+## 11. Suggested File Plan
+
+### Backend
+- `backend/src/Domain/CompetenceProfiles/...`
+- `backend/src/Application/CompetenceProfiles/...`
+- `backend/src/Infrastructure/CompetenceProfiles/InMemoryCompetenceProfileRepository.cs`
+- `backend/src/Api/Endpoints/CompetenceProfileEndpoints.cs`
+- `backend/src/Api/Extensions/ServiceCollectionExtensions.cs` (registration update)
+- `backend/tests/Application.Tests/CompetenceProfiles/...`
+- `backend/tests/Api.Tests/CompetenceProfiles/...`
+
+### Frontend
+- `frontend/src/app/features/competence-profile/...`
+- route registration update in the app routing area
+- optional shared UI component updates if a generic section/card shell is reused
+- stylesheet token update only if required by missing design-system tokens
+
+## 12. Delivery Sequence
+1. Add domain models and repository contract.
+2. Add application DTOs, service, validation, and mapping.
+3. Add in-memory infrastructure implementation and DI registration.
+4. Add Minimal API endpoints and authentication/current-user wiring.
+5. Add backend unit and integration tests.
+6. Add Angular route, API client, and signal-based feature store.
+7. Add grouped page and form components.
+8. Apply Tailwind styling aligned with the existing design system.
+9. Add frontend tests.
+10. Validate full CRUD flow end-to-end.
+
+## 13. Risks and Follow-ups
+- **Primary risk:** in-memory persistence does not satisfy real employee-profile durability expectations.
+- **Secondary risk:** current auth setup may not yet expose a stable employee identifier claim; confirm claim source before implementation.
+- **UI risk:** if the design system lacks reusable card/form primitives, some additional shared UI work may be needed.
+- **Follow-up candidate:** extend this feature later with search/filtering and manager/project discovery views once competence data becomes durable and queryable.
