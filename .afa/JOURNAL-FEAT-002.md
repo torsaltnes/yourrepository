@@ -49,3 +49,9 @@ Documented FEAT-002 in README.md and CHANGELOG.md based on the journal and repos
 
 ---
 
+## [WriterAgent] 2026-04-27 14:56:54 UTC
+
+Chose PR title '[FEAT-002] Deviation / Non-conformity management feature' to preserve the original task wording and keep the framing aligned with the delivered quality/compliance workflow. Kept the summary focused on end-to-end CRUD, Angular UI, and in-memory API so the release note reflects the implemented scope without overstating it.
+
+---
+
