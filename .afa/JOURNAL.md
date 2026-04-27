@@ -46,3 +46,15 @@ Verified backend and frontend both build successfully, and all automated tests p
 
 ---
 
+## [CodingAgent] 2026-04-27 12:25:02 UTC
+
+Confirmed the implementation had an input-validation gap in deviation enum parsing because Enum.TryParse accepted numeric strings and undefined values; hardened the API to require defined enum members. Also hardened course skill normalization to ignore null entries so malformed payloads cannot trigger 500s. Reviewed authorization boundaries: competence-profile endpoints correctly bind ownership to the authenticated NameIdentifier, while deviation read endpoints remain intentionally public per tests. Overall risk reduced to low after fixes; no critical OWASP issues remain.
+
+---
+
+## [DocumentationAgent] 2026-04-27 12:27:19 UTC
+
+Updated README.md and CHANGELOG.md for FEAT-003 using the journal as the source of truth. Chose a concise English README because no prior README language existed, and documented only implemented backend/frontend behavior: .NET 10 + Angular 20 stack, local install/run commands, and the competence profile API/route surface. Added a Keep a Changelog entry for FEAT-003 with Added/Changed/Fixed sections, including the authenticated ownership model and the validation hardening recorded in the journal.
+
+---
+
