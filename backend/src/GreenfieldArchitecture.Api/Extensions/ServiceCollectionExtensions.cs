@@ -1,9 +1,14 @@
 using System.Reflection;
 using System.Text;
+using GreenfieldArchitecture.Api.Abstractions;
+using GreenfieldArchitecture.Api.Services;
+using GreenfieldArchitecture.Application.Abstractions.CompetenceProfiles;
 using GreenfieldArchitecture.Application.Abstractions.Deviations;
 using GreenfieldArchitecture.Application.Abstractions.Health;
+using GreenfieldArchitecture.Application.CompetenceProfiles.Services;
 using GreenfieldArchitecture.Application.Deviations.Services;
 using GreenfieldArchitecture.Application.Health.Services;
+using GreenfieldArchitecture.Infrastructure.CompetenceProfiles;
 using GreenfieldArchitecture.Infrastructure.Deviations;
 using GreenfieldArchitecture.Infrastructure.Health;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -84,6 +89,12 @@ public static class ServiceCollectionExtensions
         // ── Deviations ────────────────────────────────────────────────────────
         services.AddSingleton<IDeviationRepository, InMemoryDeviationRepository>();
         services.AddScoped<IDeviationService, DeviationService>();
+
+        // ── Competence Profiles ───────────────────────────────────────────────
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
+        services.AddSingleton<ICompetenceProfileRepository, InMemoryCompetenceProfileRepository>();
+        services.AddScoped<ICompetenceProfileService, CompetenceProfileService>();
 
         return services;
     }

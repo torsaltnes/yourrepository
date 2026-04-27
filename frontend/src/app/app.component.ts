@@ -67,6 +67,21 @@ import { RouterLink, RouterOutlet } from '@angular/router';
             >
               Health
             </a>
+
+            <a
+              routerLink="/profile/competence"
+              routerLinkActive="bg-primary/10 text-primary font-semibold
+                               dark:bg-primary/20 dark:text-primary"
+              ariaCurrentWhenActive="page"
+              class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-600
+                     transition-colors duration-150
+                     hover:bg-gray-100 hover:text-gray-900
+                     focus-visible:outline-none focus-visible:ring-2
+                     focus-visible:ring-primary focus-visible:ring-offset-1
+                     dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+            >
+              Profile
+            </a>
           </nav>
 
         </div>

@@ -21,6 +21,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'profile/competence',
+    loadComponent: () =>
+      import('./features/competence-profile/competence-profile-page.component').then(
+        (m) => m.CompetenceProfilePageComponent,
+      ),
+  },
+  {
     path: '**',
     redirectTo: 'deviations',
   },

@@ -26,6 +26,7 @@ app.UseAuthorization();
 app.MapHealthEndpoints();
 app.MapHealthChecks("/health/live");
 app.MapDeviationEndpoints();
+app.MapCompetenceProfileEndpoints();
 
 app.Run();
 
