@@ -109,3 +109,15 @@ Backend solution built cleanly and all backend tests passed (43 application + 46
 
 ---
 
+## [ReviewAgent] 2026-04-27 16:17:40 UTC
+
+Confirmed the prior IDOR/authentication flaw is mitigated: profile writes now require ASP.NET Core authorization, identity is resolved only from server-validated claims, and the old X-Employee-Id trust path is absent. No critical OWASP Top 10 issues were found in the current workspace; remaining risks are limited to dev-only static API keys and publicly readable deviation/health endpoints that match the documented design.
+
+---
+
+## [DocAgent] 2026-04-27 16:19:29 UTC
+
+Documented FEAT-003 by updating README.md and CHANGELOG.md to reflect the implemented employee competence profile slice, including the /my-profile route, /api/profile endpoints, and the development Bearer-token auth requirement. Kept the existing English section structure so the original deviations documentation remains intact while adding only facts verified in the journal and workspace.
+
+---
+

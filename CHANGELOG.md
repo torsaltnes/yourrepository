@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [FEAT-003] – Employee Competence Profile – 2026-04-27
+### Added
+- Employee competence profile feature with education, certificate, and course entry management.
+- New Angular `/my-profile` page with a polished overview, section cards, and entry forms.
+- Backend Minimal API group at `/api/profile` for reading and managing the current employee profile.
+- Development Bearer-token authentication wiring so the profile feature resolves identity server-side.
+
+### Changed
+- Profile requests now use ASP.NET Core authorization and server-validated claims instead of a client-supplied employee ID header.
+- The Angular HTTP layer now sends an `Authorization: Bearer` token automatically for API calls.
+- The profile feature follows the existing vertical-slice pattern with in-memory repository-backed persistence.
+
+### Fixed
+- Removed the forgeable `X-Employee-Id` trust path that allowed identity spoofing across profile endpoints.
+
 ## [FEAT-002] – Deviation / Non-conformity management feature – 2026-04-27
 ### Added
 - Deviation domain model with severity/status enums and reported/updated timestamps.
