@@ -21,3 +21,15 @@ For FEAT-002 planning, chose explicit step-specific Minimal API endpoints over a
 
 ---
 
+## [CodingAgent] 2026-04-29 22:04:07 UTC
+
+Using specialist backend/frontend implementers instead of editing files directly to comply with orchestration-only role. Frontend and backend will each read IMPLEMENTATION_PLAN.md and apply only their respective steps, then I will verify via build/test tools and redelegate if quality gates fail.
+
+---
+
+## [CodingAgent] 2026-04-29 22:23:53 UTC
+
+Accepted FEAT-002 after delegated backend/frontend implementations passed independent verification: dotnet build/test on Greenfield.sln and npm install/build/test on frontend all succeeded. Kept existing Tailwind 4/PostCSS and .NET local-development conventions intact while adding the new deviation workflow feature surface.
+
+---
+
