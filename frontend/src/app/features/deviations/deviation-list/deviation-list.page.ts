@@ -23,83 +23,75 @@ import {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [DeviationListStore],
-  imports: [RouterLink, SeverityBadgeComponent, StatusBadgeComponent],
+  imports: [
+    RouterLink,
+    SeverityBadgeComponent,
+    StatusBadgeComponent,
+  ],
   template: `
     <div class="flex flex-col gap-6 p-4 md:p-6">
 
-      <!-- ── Page header ─────────────────────────────────────────────────── -->
-      <div class="flex flex-wrap items-start justify-between gap-4">
+      <!-- ── Page header ──────────────────────────────────────────── -->
+      <div class="flex flex-wrap items-center justify-between gap-4">
         <div class="flex flex-col gap-1">
           <h1 class="text-heading font-semibold text-balance text-text-primary">
             Deviations
           </h1>
           <p class="text-caption text-text-secondary">
-            {{ store.totalCount() }} total records
+            Manage and track all deviations
           </p>
         </div>
 
         <div class="flex flex-wrap items-center gap-3">
-          <!-- Export -->
+          <!-- Export CSV -->
           <button
-            class="flex items-center gap-2 rounded-lg border border-border bg-surface-raised
-                   px-4 py-2 text-body font-medium text-text-primary
+            type="button"
+            class="rounded-lg border border-border bg-surface-raised px-4 py-2
+                   text-body font-medium text-text-primary
                    transition-colors duration-150
                    hover:bg-surface-overlay
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary
-                   disabled:cursor-not-allowed disabled:opacity-50"
+                   disabled:opacity-40 disabled:cursor-not-allowed"
             [disabled]="store.exportLoading()"
             (click)="store.export()"
-            type="button"
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-                 stroke="currentColor" stroke-width="1.4" aria-hidden="true">
-              <path d="M7 2v7M4 6l3 3 3-3" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 11h10" stroke-linecap="round"/>
-            </svg>
-            @if (store.exportLoading()) { Exporting… } @else { Export CSV }
+            @if (store.exportLoading()) {
+              Exporting…
+            } @else {
+              Export CSV
+            }
           </button>
 
-          <!-- New Deviation -->
+          <!-- New Deviation link -->
           <a
             routerLink="/deviations/new"
-            class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2
-                   text-body font-medium text-white transition-colors duration-150
+            class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2
+                   text-body font-medium text-white
+                   transition-colors duration-150
                    hover:bg-primary-hover
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"
-                 aria-hidden="true">
-              <path d="M7 2v10M2 7h10" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round"/>
-            </svg>
-            New Deviation
+            + New Deviation
           </a>
         </div>
       </div>
 
-      <!-- ── Search & Filters ────────────────────────────────────────────── -->
+      <!-- ── Filter bar ────────────────────────────────────────────── -->
       <div class="flex flex-wrap items-center gap-3">
         <!-- Search -->
-        <div class="relative min-w-0 flex-1 sm:max-w-xs">
+        <div class="relative flex-1 min-w-48">
           <span
-            class="pointer-events-none absolute inset-y-0 left-3 flex items-center
-                   text-text-secondary"
+            class="pointer-events-none absolute inset-y-0 left-3
+                   flex items-center text-text-secondary"
             aria-hidden="true"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-                 stroke="currentColor" stroke-width="1.5">
-              <circle cx="6" cy="6" r="4"/>
-              <path d="M9.5 9.5L13 13" stroke-linecap="round"/>
-            </svg>
-          </span>
+          >🔍</span>
           <input
             type="search"
-            placeholder="Search title or reference…"
-            class="w-full rounded-lg border border-border bg-surface-raised
-                   py-2 pl-9 pr-3 text-body text-text-primary
-                   placeholder:text-text-secondary transition-colors duration-150
-                   focus:border-primary focus:outline-none
-                   focus-visible:ring-2 focus-visible:ring-primary"
+            placeholder="Search deviations…"
+            class="w-full rounded-lg border border-border bg-surface pl-9 pr-4 py-2
+                   text-body text-text-primary placeholder:text-text-secondary
+                   transition-colors duration-150
+                   focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
             [value]="store.searchQuery()"
             (input)="onSearchInput($event)"
             aria-label="Search deviations"
@@ -108,245 +100,204 @@ import {
 
         <!-- Status filter -->
         <select
-          class="rounded-lg border border-border bg-surface-raised
-                 px-3 py-2 text-body text-text-primary transition-colors duration-150
-                 focus:border-primary focus:outline-none
-                 focus-visible:ring-2 focus-visible:ring-primary"
+          class="rounded-lg border border-border bg-surface px-3 py-2
+                 text-body text-text-primary
+                 transition-colors duration-150
+                 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           [value]="store.statusFilter()"
           (change)="onStatusChange($event)"
           aria-label="Filter by status"
         >
-          <option value="">All Statuses</option>
-          @for (opt of statusOptions; track opt.value) {
-            <option [value]="opt.value">{{ opt.label }}</option>
+          <option value="">All statuses</option>
+          @for (entry of statusOptions; track entry.value) {
+            <option [value]="entry.value">{{ entry.label }}</option>
           }
         </select>
 
         <!-- Severity filter -->
         <select
-          class="rounded-lg border border-border bg-surface-raised
-                 px-3 py-2 text-body text-text-primary transition-colors duration-150
-                 focus:border-primary focus:outline-none
-                 focus-visible:ring-2 focus-visible:ring-primary"
+          class="rounded-lg border border-border bg-surface px-3 py-2
+                 text-body text-text-primary
+                 transition-colors duration-150
+                 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           [value]="store.severityFilter()"
           (change)="onSeverityChange($event)"
           aria-label="Filter by severity"
         >
-          <option value="">All Severities</option>
-          @for (opt of severityOptions; track opt.value) {
-            <option [value]="opt.value">{{ opt.label }}</option>
+          <option value="">All severities</option>
+          @for (entry of severityOptions; track entry.value) {
+            <option [value]="entry.value">{{ entry.label }}</option>
           }
         </select>
 
         <!-- Type filter -->
         <select
-          class="rounded-lg border border-border bg-surface-raised
-                 px-3 py-2 text-body text-text-primary transition-colors duration-150
-                 focus:border-primary focus:outline-none
-                 focus-visible:ring-2 focus-visible:ring-primary"
+          class="rounded-lg border border-border bg-surface px-3 py-2
+                 text-body text-text-primary
+                 transition-colors duration-150
+                 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           [value]="store.typeFilter()"
           (change)="onTypeChange($event)"
           aria-label="Filter by type"
         >
-          <option value="">All Types</option>
-          @for (opt of typeOptions; track opt.value) {
-            <option [value]="opt.value">{{ opt.label }}</option>
+          <option value="">All types</option>
+          @for (entry of typeOptions; track entry.value) {
+            <option [value]="entry.value">{{ entry.label }}</option>
           }
         </select>
 
         <!-- Clear filters -->
-        @if (store.activeFilterCount() > 0 || store.searchQuery()) {
+        @if (store.activeFilterCount() > 0) {
           <button
-            class="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2
-                   text-body text-text-secondary transition-colors duration-150
+            type="button"
+            class="rounded-lg border border-border px-3 py-2 text-body
+                   text-text-secondary transition-colors duration-150
                    hover:bg-surface-raised hover:text-text-primary
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             (click)="store.clearFilters()"
-            type="button"
           >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"
-                 aria-hidden="true">
-              <path d="M9.78 3.22L8.72 2.16 6 4.88 3.28 2.16 2.22 3.22 4.94 5.94 2.22 8.66 3.28 9.72 6 6.94 8.72 9.72 9.78 8.66 7.06 5.94z"/>
-            </svg>
-            Clear
-            @if (store.activeFilterCount() > 0) {
-              <span
-                class="flex size-4 items-center justify-center rounded-full
-                       bg-primary text-[10px] font-bold text-white"
-              >
-                {{ store.activeFilterCount() }}
-              </span>
-            }
+            Clear ({{ store.activeFilterCount() }})
           </button>
         }
+
+        <!-- Reload -->
+        <button
+          type="button"
+          class="rounded-lg border border-border px-3 py-2 text-body
+                 text-text-secondary transition-colors duration-150
+                 hover:bg-surface-raised hover:text-text-primary
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary
+                 disabled:opacity-40 disabled:cursor-not-allowed"
+          [disabled]="store.loading()"
+          (click)="store.reload()"
+          aria-label="Reload data"
+          title="Reload"
+        >↺</button>
       </div>
 
-      <!-- ── Table ────────────────────────────────────────────────────────── -->
-      <div class="overflow-hidden rounded-xl border border-border bg-surface">
+      <!-- ── Loading skeleton ───────────────────────────────────────── -->
+      @if (store.loading()) {
+        <div
+          class="animate-pulse space-y-3 rounded-xl border border-border bg-surface p-4"
+          role="status"
+          aria-label="Loading"
+        >
+          <div class="h-4 w-1/3 rounded bg-surface-raised"></div>
+          <div class="h-4 w-2/3 rounded bg-surface-raised"></div>
+          <div class="h-4 w-1/2 rounded bg-surface-raised"></div>
+          <div class="h-4 w-3/4 rounded bg-surface-raised"></div>
+          <div class="h-4 w-2/5 rounded bg-surface-raised"></div>
+        </div>
+      }
 
-        @if (store.loading()) {
-          <!-- Loading skeleton -->
-          <div class="flex flex-col gap-0">
-            @for (_ of skeletonRows; track $index) {
-              <div
-                class="flex animate-pulse items-center gap-4 border-b border-border px-4 py-4
-                       last:border-0"
-              >
-                <div class="h-3 w-24 rounded-full bg-surface-raised"></div>
-                <div class="h-3 flex-1 rounded-full bg-surface-raised"></div>
-                <div class="h-3 w-16 rounded-full bg-surface-raised"></div>
-                <div class="h-5 w-16 rounded-full bg-surface-raised"></div>
-                <div class="h-5 w-20 rounded-full bg-surface-raised"></div>
-              </div>
-            }
-          </div>
-        } @else if (store.error()) {
-          <!-- Error state -->
-          <div class="flex flex-col items-center gap-3 py-12 text-center">
-            <div
-              class="flex size-10 items-center justify-center rounded-full bg-danger/10"
-              aria-hidden="true"
-            >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"
-                   stroke="currentColor" stroke-width="1.5">
-                <circle cx="10" cy="10" r="8"/>
-                <path d="M10 6v5M10 14h.01" stroke-linecap="round"/>
-              </svg>
-            </div>
-            <p class="text-body font-medium text-text-primary">Failed to load deviations</p>
+      <!-- ── Error state ────────────────────────────────────────────── -->
+      @if (store.error() && !store.loading()) {
+        <div
+          class="flex items-center gap-3 rounded-xl border border-danger/30
+                 bg-danger/5 p-4 text-danger"
+          role="alert"
+        >
+          <span aria-hidden="true">⚠</span>
+          <div class="flex flex-1 flex-col gap-1">
+            <p class="text-body font-medium">Failed to load deviations</p>
             <p class="text-caption text-text-secondary">
-              {{ store.error()?.message ?? 'An unexpected error occurred' }}
+              Check your network connection and try again.
             </p>
-            <button
-              class="mt-2 rounded-lg bg-primary px-4 py-2 text-body font-medium text-white
-                     transition-colors duration-150 hover:bg-primary-hover
-                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              (click)="store.reload()"
-              type="button"
-            >
-              Retry
-            </button>
           </div>
-        } @else if (store.items().length === 0) {
-          <!-- Empty state -->
-          <div class="flex flex-col items-center gap-3 py-12 text-center">
-            <div
-              class="flex size-12 items-center justify-center rounded-full bg-surface-raised"
-              aria-hidden="true"
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-                   stroke="currentColor" stroke-width="1.2">
-                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
-                <rect x="9" y="3" width="6" height="4" rx="1"/>
-                <path d="M9 12h6M9 16h4" stroke-linecap="round"/>
-              </svg>
-            </div>
-            <p class="text-body font-medium text-text-primary">No deviations found</p>
-            <p class="text-caption text-text-secondary">
-              @if (store.activeFilterCount() > 0 || store.searchQuery()) {
-                Try adjusting your search or filters.
-              } @else {
-                Register your first deviation to get started.
-              }
-            </p>
-            <a
-              routerLink="/deviations/new"
-              class="mt-2 rounded-lg bg-primary px-4 py-2 text-body font-medium text-white
-                     transition-colors duration-150 hover:bg-primary-hover
-                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            >
-              Register Deviation
-            </a>
+          <button
+            type="button"
+            class="rounded-lg border border-danger/30 px-3 py-1.5 text-caption font-medium
+                   text-danger transition-colors duration-150
+                   hover:bg-danger/10
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
+            (click)="store.reload()"
+          >
+            Retry
+          </button>
+        </div>
+      }
+
+      <!-- ── Deviations table ───────────────────────────────────────── -->
+      @if (!store.loading()) {
+        <div class="overflow-hidden rounded-xl border border-border bg-surface">
+
+          <!-- Table toolbar -->
+          <div class="flex items-center justify-between border-b border-border px-4 py-3">
+            <h2 class="text-body font-semibold text-text-primary">Deviations</h2>
+            <span class="text-caption text-text-secondary">
+              {{ store.paginationLabel() }}
+            </span>
           </div>
-        } @else {
-          <!-- Data table -->
+
+          <!-- Scrollable table -->
           <div class="overflow-x-auto">
-            <table class="w-full text-body" role="grid">
+            <table class="w-full text-body" role="table">
               <thead>
                 <tr class="border-b border-border">
-                  <th
-                    class="px-4 py-3 text-left text-caption font-medium text-text-secondary"
-                    scope="col"
-                  >
+                  <th scope="col"
+                      class="px-4 py-3 text-left text-caption font-medium
+                             uppercase tracking-wider text-text-secondary">
                     <button
+                      type="button"
                       class="flex items-center gap-1 transition-colors duration-150
                              hover:text-text-primary focus-visible:outline-none"
                       (click)="store.sort('referenceNumber')"
                     >
-                      Ref #
-                      <span aria-hidden="true">{{ sortIcon('referenceNumber') }}</span>
+                      ID
+                      <span class="text-[10px]">{{ sortIndicator('referenceNumber') }}</span>
                     </button>
                   </th>
-                  <th
-                    class="px-4 py-3 text-left text-caption font-medium text-text-secondary"
-                    scope="col"
-                  >
+                  <th scope="col"
+                      class="px-4 py-3 text-left text-caption font-medium
+                             uppercase tracking-wider text-text-secondary">
                     <button
+                      type="button"
                       class="flex items-center gap-1 transition-colors duration-150
                              hover:text-text-primary focus-visible:outline-none"
                       (click)="store.sort('title')"
                     >
                       Title
-                      <span aria-hidden="true">{{ sortIcon('title') }}</span>
+                      <span class="text-[10px]">{{ sortIndicator('title') }}</span>
                     </button>
                   </th>
-                  <th
-                    class="px-4 py-3 text-left text-caption font-medium text-text-secondary"
-                    scope="col"
-                  >
-                    Type
-                  </th>
-                  <th
-                    class="px-4 py-3 text-left text-caption font-medium text-text-secondary"
-                    scope="col"
-                  >
+                  <th scope="col"
+                      class="px-4 py-3 text-left text-caption font-medium
+                             uppercase tracking-wider text-text-secondary">Type</th>
+                  <th scope="col"
+                      class="px-4 py-3 text-left text-caption font-medium
+                             uppercase tracking-wider text-text-secondary">
                     <button
+                      type="button"
                       class="flex items-center gap-1 transition-colors duration-150
                              hover:text-text-primary focus-visible:outline-none"
                       (click)="store.sort('severity')"
                     >
                       Severity
-                      <span aria-hidden="true">{{ sortIcon('severity') }}</span>
+                      <span class="text-[10px]">{{ sortIndicator('severity') }}</span>
                     </button>
                   </th>
-                  <th
-                    class="px-4 py-3 text-left text-caption font-medium text-text-secondary"
-                    scope="col"
-                  >
+                  <th scope="col"
+                      class="px-4 py-3 text-left text-caption font-medium
+                             uppercase tracking-wider text-text-secondary">Status</th>
+                  <th scope="col"
+                      class="px-4 py-3 text-left text-caption font-medium
+                             uppercase tracking-wider text-text-secondary">Assigned To</th>
+                  <th scope="col"
+                      class="px-4 py-3 text-left text-caption font-medium
+                             uppercase tracking-wider text-text-secondary">
                     <button
-                      class="flex items-center gap-1 transition-colors duration-150
-                             hover:text-text-primary focus-visible:outline-none"
-                      (click)="store.sort('status')"
-                    >
-                      Status
-                      <span aria-hidden="true">{{ sortIcon('status') }}</span>
-                    </button>
-                  </th>
-                  <th
-                    class="px-4 py-3 text-left text-caption font-medium text-text-secondary"
-                    scope="col"
-                  >
-                    Reporter
-                  </th>
-                  <th
-                    class="px-4 py-3 text-left text-caption font-medium text-text-secondary"
-                    scope="col"
-                  >
-                    <button
+                      type="button"
                       class="flex items-center gap-1 transition-colors duration-150
                              hover:text-text-primary focus-visible:outline-none"
                       (click)="store.sort('createdAt')"
                     >
-                      Created
-                      <span aria-hidden="true">{{ sortIcon('createdAt') }}</span>
+                      Date
+                      <span class="text-[10px]">{{ sortIndicator('createdAt') }}</span>
                     </button>
                   </th>
-                  <th
-                    class="px-4 py-3 text-left text-caption font-medium text-text-secondary"
-                    scope="col"
-                  >
-                    <span class="sr-only">Actions</span>
-                  </th>
+                  <th scope="col"
+                      class="px-4 py-3 text-left text-caption font-medium
+                             uppercase tracking-wider text-text-secondary">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -358,14 +309,11 @@ import {
                     <td class="px-4 py-3 font-mono text-caption text-text-secondary">
                       {{ row.referenceNumber }}
                     </td>
-                    <td class="max-w-xs px-4 py-3">
-                      <p class="truncate font-medium text-text-primary">{{ row.title }}</p>
-                      <p class="truncate text-caption text-text-secondary">
-                        {{ row.department }} &middot; {{ row.location }}
-                      </p>
+                    <td class="max-w-xs truncate px-4 py-3 font-medium text-text-primary">
+                      {{ row.title }}
                     </td>
-                    <td class="px-4 py-3 text-caption text-text-secondary">
-                      {{ typeLabel(row) }}
+                    <td class="px-4 py-3 text-text-secondary">
+                      {{ typeLabel(row.type) }}
                     </td>
                     <td class="px-4 py-3">
                       <app-severity-badge [severity]="row.severity" />
@@ -373,23 +321,37 @@ import {
                     <td class="px-4 py-3">
                       <app-status-badge [status]="row.status" />
                     </td>
-                    <td class="px-4 py-3 text-caption text-text-secondary">
-                      {{ row.reportedBy }}
+                    <td class="px-4 py-3 text-text-secondary">
+                      {{ row.assignedTo ?? '–' }}
                     </td>
-                    <td class="px-4 py-3 text-caption text-text-secondary">
+                    <td class="whitespace-nowrap px-4 py-3 text-caption text-text-secondary">
                       {{ formatDate(row.createdAt) }}
                     </td>
                     <td class="px-4 py-3">
                       <a
                         [routerLink]="['/deviations', row.id]"
-                        class="rounded-md px-3 py-1 text-caption font-medium text-primary
+                        class="rounded px-2.5 py-1 text-caption font-medium text-primary
                                transition-colors duration-150
                                hover:bg-primary/10
                                focus-visible:outline-none focus-visible:ring-2
                                focus-visible:ring-primary"
-                      >
-                        View
-                      </a>
+                      >View</a>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="8" class="px-4 py-12 text-center">
+                      <p class="text-body text-text-secondary">No deviations found</p>
+                      @if (store.activeFilterCount() > 0) {
+                        <button
+                          type="button"
+                          class="mt-2 text-caption text-primary underline
+                                 transition-colors duration-150 hover:text-primary-hover
+                                 focus-visible:outline-none focus-visible:ring-2
+                                 focus-visible:ring-primary"
+                          (click)="store.clearFilters()"
+                        >Clear filters</button>
+                      }
                     </td>
                   </tr>
                 }
@@ -398,15 +360,13 @@ import {
           </div>
 
           <!-- Pagination -->
-          <div
-            class="flex flex-wrap items-center justify-between gap-3
-                   border-t border-border px-4 py-3"
-          >
+          <div class="flex items-center justify-between border-t border-border px-4 py-3">
             <span class="text-caption text-text-secondary">
-              {{ store.paginationLabel() }}
+              Page {{ store.currentPage() }} of {{ store.totalPages() }}
             </span>
             <div class="flex items-center gap-2">
               <button
+                type="button"
                 class="rounded-md border border-border px-3 py-1 text-caption
                        text-text-secondary transition-colors duration-150
                        hover:bg-surface-raised hover:text-text-primary
@@ -414,28 +374,28 @@ import {
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 [disabled]="!store.hasPreviousPage()"
                 (click)="store.goToPage(store.currentPage() - 1)"
-                type="button"
-              >
-                ← Previous
-              </button>
+              >← Prev</button>
 
-              <!-- Page numbers (show up to 5) -->
-              @for (p of visiblePages(); track p) {
-                <button
-                  class="rounded-md px-3 py-1 text-caption transition-colors duration-150
-                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  [class]="p === store.currentPage()
-                    ? 'bg-primary text-white'
-                    : 'border border-border text-text-secondary hover:bg-surface-raised'"
-                  (click)="store.goToPage(p)"
-                  type="button"
-                  [attr.aria-current]="p === store.currentPage() ? 'page' : null"
-                >
-                  {{ p }}
-                </button>
+              @for (page of visiblePages(); track page) {
+                @if (page > 0) {
+                  <button
+                    type="button"
+                    class="rounded-md px-3 py-1 text-caption font-medium
+                           transition-colors duration-150
+                           focus-visible:outline-none focus-visible:ring-2
+                           focus-visible:ring-primary"
+                    [class]="page === store.currentPage()
+                      ? 'bg-primary text-white'
+                      : 'border border-border text-text-secondary hover:bg-surface-raised hover:text-text-primary'"
+                    (click)="store.goToPage(page)"
+                  >{{ page }}</button>
+                } @else {
+                  <span class="px-1 text-caption text-text-secondary">…</span>
+                }
               }
 
               <button
+                type="button"
                 class="rounded-md border border-border px-3 py-1 text-caption
                        text-text-secondary transition-colors duration-150
                        hover:bg-surface-raised hover:text-text-primary
@@ -443,89 +403,95 @@ import {
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 [disabled]="!store.hasNextPage()"
                 (click)="store.goToPage(store.currentPage() + 1)"
-                type="button"
-              >
-                Next →
-              </button>
+              >Next →</button>
             </div>
           </div>
-        }
-      </div>
+
+        </div>
+      }
+
     </div>
   `,
 })
 export class DeviationListPage {
   protected readonly store = inject(DeviationListStore);
 
-  protected readonly skeletonRows = Array(5);
-
-  // ── Option arrays for selects ───────────────────────────────────────────
   protected readonly statusOptions: { value: DeviationStatus; label: string }[] = [
-    { value: 'Registered', label: DEVIATION_STATUS_LABELS['Registered'] },
-    { value: 'Assessed', label: DEVIATION_STATUS_LABELS['Assessed'] },
-    { value: 'Investigating', label: DEVIATION_STATUS_LABELS['Investigating'] },
-    { value: 'CorrectiveAction', label: DEVIATION_STATUS_LABELS['CorrectiveAction'] },
-    { value: 'Closed', label: DEVIATION_STATUS_LABELS['Closed'] },
+    { value: 'Registered',         label: DEVIATION_STATUS_LABELS['Registered'] },
+    { value: 'UnderAssessment',    label: DEVIATION_STATUS_LABELS['UnderAssessment'] },
+    { value: 'UnderInvestigation', label: DEVIATION_STATUS_LABELS['UnderInvestigation'] },
+    { value: 'CorrectiveAction',   label: DEVIATION_STATUS_LABELS['CorrectiveAction'] },
+    { value: 'Closed',             label: DEVIATION_STATUS_LABELS['Closed'] },
   ];
 
   protected readonly severityOptions: { value: DeviationSeverity; label: string }[] = [
     { value: 'Critical', label: DEVIATION_SEVERITY_LABELS['Critical'] },
-    { value: 'High', label: DEVIATION_SEVERITY_LABELS['High'] },
-    { value: 'Medium', label: DEVIATION_SEVERITY_LABELS['Medium'] },
-    { value: 'Low', label: DEVIATION_SEVERITY_LABELS['Low'] },
+    { value: 'High',     label: DEVIATION_SEVERITY_LABELS['High'] },
+    { value: 'Medium',   label: DEVIATION_SEVERITY_LABELS['Medium'] },
+    { value: 'Low',      label: DEVIATION_SEVERITY_LABELS['Low'] },
   ];
 
   protected readonly typeOptions: { value: DeviationType; label: string }[] = [
-    { value: 'Deviation', label: DEVIATION_TYPE_LABELS['Deviation'] },
-    { value: 'NonConformance', label: DEVIATION_TYPE_LABELS['NonConformance'] },
-    { value: 'Incident', label: DEVIATION_TYPE_LABELS['Incident'] },
-    { value: 'NearMiss', label: DEVIATION_TYPE_LABELS['NearMiss'] },
+    { value: 'Deviation',       label: DEVIATION_TYPE_LABELS['Deviation'] },
+    { value: 'NonConformance',  label: DEVIATION_TYPE_LABELS['NonConformance'] },
+    { value: 'Incident',        label: DEVIATION_TYPE_LABELS['Incident'] },
+    { value: 'NearMiss',        label: DEVIATION_TYPE_LABELS['NearMiss'] },
   ];
 
-  // ── Derived ─────────────────────────────────────────────────────────────
   protected readonly visiblePages = computed(() => {
     const total = this.store.totalPages();
     const current = this.store.currentPage();
     if (total <= 7) {
       return Array.from({ length: total }, (_, i) => i + 1);
     }
-    const start = Math.max(1, current - 2);
-    const end = Math.min(total, current + 2);
-    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+    const pages: number[] = [1];
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+    if (start > 2) pages.push(-1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < total - 1) pages.push(-2);
+    pages.push(total);
+    return pages;
   });
 
-  // ── Event handlers ───────────────────────────────────────────────────────
   protected onSearchInput(event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    this.store.setSearch(value);
+    const input = event.target as HTMLInputElement;
+    this.store.setSearch(input.value);
   }
 
   protected onStatusChange(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value as DeviationStatus | '';
-    this.store.setStatusFilter(value);
+    const select = event.target as HTMLSelectElement;
+    this.store.setStatusFilter(select.value as DeviationStatus | '');
   }
 
   protected onSeverityChange(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value as DeviationSeverity | '';
-    this.store.setSeverityFilter(value);
+    const select = event.target as HTMLSelectElement;
+    this.store.setSeverityFilter(select.value as DeviationSeverity | '');
   }
 
   protected onTypeChange(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value as DeviationType | '';
-    this.store.setTypeFilter(value);
+    const select = event.target as HTMLSelectElement;
+    this.store.setTypeFilter(select.value as DeviationType | '');
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
-  protected typeLabel(row: DeviationDto): string {
-    return DEVIATION_TYPE_LABELS[row.type] ?? row.type;
+  protected typeLabel(type: string): string {
+    return DEVIATION_TYPE_LABELS[type as keyof typeof DEVIATION_TYPE_LABELS] ?? type;
   }
 
-  protected formatDate(iso: string): string {
-    return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' });
-  }
-
-  protected sortIcon(column: string): string {
+  protected sortIndicator(column: string): string {
     if (this.store.sortBy() !== column) return '';
-    return this.store.sortDir() === 'asc' ? '↑' : '↓';
+    return this.store.sortDir() === 'asc' ? '▲' : '▼';
+  }
+
+  protected formatDate(isoDate: string): string {
+    try {
+      return new Date(isoDate).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+    } catch {
+      return isoDate;
+    }
   }
 }

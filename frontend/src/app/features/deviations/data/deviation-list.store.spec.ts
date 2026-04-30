@@ -69,8 +69,8 @@ describe('DeviationListStore', () => {
 
   it('setStatusFilter() updates statusFilter and resets page', () => {
     store['currentPage'].set(2);
-    store.setStatusFilter('Assessed');
-    expect(store.statusFilter()).toBe('Assessed');
+    store.setStatusFilter('UnderAssessment');
+    expect(store.statusFilter()).toBe('UnderAssessment');
     expect(store.currentPage()).toBe(1);
   });
 

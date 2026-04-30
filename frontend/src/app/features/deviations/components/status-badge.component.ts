@@ -34,9 +34,9 @@ export class StatusBadgeComponent {
     switch (this.status()) {
       case 'Registered':
         return 'bg-primary/15 text-primary';
-      case 'Assessed':
+      case 'UnderAssessment':
         return 'bg-warning/15 text-warning';
-      case 'Investigating':
+      case 'UnderInvestigation':
         return 'bg-warning/20 text-warning';
       case 'CorrectiveAction':
         return 'bg-danger/15 text-danger';

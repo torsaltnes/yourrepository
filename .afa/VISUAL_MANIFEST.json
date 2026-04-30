@@ -965,6 +965,522 @@
         "userThemePreference": "light",
         "notes": "Confidence 0.74 \u2013 bildest\u00F8rrelse (~91KB) og prosessnavnet \u0027deviation-process\u0027 gir god kontekstuell sikkerhet. Noen detaljerte tekststrenger er estimert basert p\u00E5 typiske norske avvikssystemer. Siste brukerpreferanse (light theme) er respektert."
       }
+    },
+    {
+      "sourceImage": ".afa/images/dashboard-avvik.png",
+      "layout": {
+        "type": "flex",
+        "direction": "column",
+        "children": [
+          {
+            "id": "topbar",
+            "type": "flex",
+            "direction": "row",
+            "description": "Topnavigasjon med logo, tittel og bruker-/innstillingskontroller"
+          },
+          {
+            "id": "main-content",
+            "type": "flex",
+            "direction": "column",
+            "children": [
+              {
+                "id": "page-header",
+                "type": "flex",
+                "direction": "row",
+                "description": "Sidetittel og prim\u00E6rhandlingsknapper (Ny avvik, Eksporter)"
+              },
+              {
+                "id": "filter-bar",
+                "type": "flex",
+                "direction": "row",
+                "description": "Filterkontroller: s\u00F8kefelt, statusdropdown, datointervallvelger"
+              },
+              {
+                "id": "stats-row",
+                "type": "grid",
+                "columns": 4,
+                "description": "Oppsummeringskort med n\u00F8kkeltall for avvik"
+              },
+              {
+                "id": "data-table",
+                "type": "flex",
+                "direction": "column",
+                "description": "Tabellvisning av avviksregistreringer med paginering"
+              }
+            ]
+          }
+        ]
+      },
+      "components": [
+        {
+          "type": "nav",
+          "label": "Toppmeny",
+          "description": "Horisontal navigasjonsbar med logo og lenker"
+        },
+        {
+          "type": "heading",
+          "label": "Avvik",
+          "level": "h1"
+        },
+        {
+          "type": "button",
+          "label": "Nytt avvik",
+          "variant": "primary"
+        },
+        {
+          "type": "button",
+          "label": "Eksporter",
+          "variant": "secondary"
+        },
+        {
+          "type": "input",
+          "label": "S\u00F8k",
+          "placeholder": "S\u00F8k etter avvik..."
+        },
+        {
+          "type": "select",
+          "label": "Status",
+          "options": [
+            "Alle",
+            "\u00C5pen",
+            "Under behandling",
+            "Lukket"
+          ]
+        },
+        {
+          "type": "date-range-picker",
+          "label": "Periode",
+          "placeholder": "Velg datoperiode"
+        },
+        {
+          "type": "card",
+          "label": "Totalt antall avvik",
+          "value": "numeric",
+          "variant": "stat"
+        },
+        {
+          "type": "card",
+          "label": "\u00C5pne avvik",
+          "value": "numeric",
+          "variant": "stat-warning"
+        },
+        {
+          "type": "card",
+          "label": "Under behandling",
+          "value": "numeric",
+          "variant": "stat-info"
+        },
+        {
+          "type": "card",
+          "label": "Lukkede avvik",
+          "value": "numeric",
+          "variant": "stat-success"
+        },
+        {
+          "type": "table",
+          "label": "Avviksliste",
+          "columns": [
+            {
+              "key": "id",
+              "label": "ID"
+            },
+            {
+              "key": "tittel",
+              "label": "Tittel"
+            },
+            {
+              "key": "kategori",
+              "label": "Kategori"
+            },
+            {
+              "key": "status",
+              "label": "Status"
+            },
+            {
+              "key": "ansvarlig",
+              "label": "Ansvarlig"
+            },
+            {
+              "key": "dato",
+              "label": "Dato"
+            },
+            {
+              "key": "handlinger",
+              "label": "Handlinger"
+            }
+          ]
+        },
+        {
+          "type": "badge",
+          "label": "\u00C5pen",
+          "variant": "warning"
+        },
+        {
+          "type": "badge",
+          "label": "Under behandling",
+          "variant": "info"
+        },
+        {
+          "type": "badge",
+          "label": "Lukket",
+          "variant": "success"
+        },
+        {
+          "type": "pagination",
+          "label": "Paginering"
+        },
+        {
+          "type": "button",
+          "label": "Se detaljer",
+          "variant": "ghost",
+          "icon": "eye"
+        },
+        {
+          "type": "button",
+          "label": "Rediger",
+          "variant": "ghost",
+          "icon": "pencil"
+        }
+      ],
+      "textContent": [
+        "Avvik",
+        "Nytt avvik",
+        "Eksporter",
+        "S\u00F8k etter avvik...",
+        "Status",
+        "Alle",
+        "\u00C5pen",
+        "Under behandling",
+        "Lukket",
+        "Periode",
+        "Totalt antall avvik",
+        "\u00C5pne avvik",
+        "Under behandling",
+        "Lukkede avvik",
+        "ID",
+        "Tittel",
+        "Kategori",
+        "Status",
+        "Ansvarlig",
+        "Dato",
+        "Handlinger",
+        "Se detaljer",
+        "Rediger",
+        "Forrige",
+        "Neste"
+      ],
+      "styles": {
+        "colors": [
+          "--color-primary: oklch(0.55 0.18 250)",
+          "--color-primary-hover: oklch(0.48 0.20 250)",
+          "--color-surface: oklch(1.0 0 0)",
+          "--color-surface-secondary: oklch(0.97 0.005 240)",
+          "--color-surface-card: oklch(1.0 0 0)",
+          "--color-border: oklch(0.88 0.01 240)",
+          "--color-text-primary: oklch(0.20 0.015 250)",
+          "--color-text-secondary: oklch(0.50 0.015 250)",
+          "--color-text-muted: oklch(0.65 0.01 240)",
+          "--color-success: oklch(0.62 0.17 145)",
+          "--color-success-surface: oklch(0.95 0.06 145)",
+          "--color-warning: oklch(0.70 0.16 65)",
+          "--color-warning-surface: oklch(0.96 0.07 75)",
+          "--color-danger: oklch(0.60 0.20 25)",
+          "--color-danger-surface: oklch(0.95 0.07 25)",
+          "--color-info: oklch(0.60 0.16 240)",
+          "--color-info-surface: oklch(0.95 0.05 240)",
+          "--color-topbar-bg: oklch(0.25 0.08 252)"
+        ],
+        "spacingScale": "normal",
+        "borderRadius": "md",
+        "fontFamily": "Inter, \u0027Segoe UI\u0027, system-ui, sans-serif",
+        "themeMode": "light",
+        "noteOnUserPreference": "Siste registrerte preferanse er \u0027light\u0027. Analysen reflekterer det synlige lys-temaet i bildet, i samsvar med gjeldende preferanse."
+      },
+      "metadata": {
+        "imageWidth": 1280,
+        "imageHeight": 800,
+        "fileSizeBytes": 44409,
+        "filePath": ".afa/images/dashboard-avvik.png",
+        "analyzedBy": "claude-sonnet-4.6",
+        "confidence": 0.74,
+        "analyzedAt": "2026-04-30T08:36:30.055Z",
+        "notes": "Analyse basert p\u00E5 multi-modal bildevedlegg og filnavn-kontekst (\u0027avvik\u0027 = norsk for avvik/ikke-samsvar). Brukerens siste preferanse er \u0027light theme\u0027, som samsvarer med det identifiserte lys-temaet. Confidence redusert noe da bildet er lavt i byte-st\u00F8rrelse (44 KB) og findetaljer kan mangle."
+      }
+    },
+    {
+      "sourceImage": ".afa/images/design-example_2.png",
+      "layout": {
+        "type": "flex",
+        "direction": "column",
+        "children": [
+          {
+            "id": "topbar",
+            "type": "flex",
+            "direction": "row",
+            "role": "header",
+            "children": [
+              {
+                "id": "logo",
+                "type": "brand"
+              },
+              {
+                "id": "nav-links",
+                "type": "flex",
+                "direction": "row"
+              },
+              {
+                "id": "user-actions",
+                "type": "flex",
+                "direction": "row"
+              }
+            ]
+          },
+          {
+            "id": "main-wrapper",
+            "type": "flex",
+            "direction": "row",
+            "children": [
+              {
+                "id": "sidebar",
+                "type": "flex",
+                "direction": "column",
+                "role": "navigation"
+              },
+              {
+                "id": "content-area",
+                "type": "grid",
+                "columns": "repeat(12, 1fr)",
+                "children": [
+                  {
+                    "id": "kpi-row",
+                    "type": "grid",
+                    "columns": "repeat(4, 1fr)"
+                  },
+                  {
+                    "id": "chart-section",
+                    "type": "grid",
+                    "columns": "8fr 4fr"
+                  },
+                  {
+                    "id": "table-section",
+                    "type": "grid",
+                    "columns": "1fr"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "components": [
+        {
+          "type": "nav",
+          "label": "Topbar Navigation",
+          "role": "primary-nav"
+        },
+        {
+          "type": "logo",
+          "label": "Brand Logo",
+          "position": "top-left"
+        },
+        {
+          "type": "nav-link",
+          "label": "Dashboard"
+        },
+        {
+          "type": "nav-link",
+          "label": "Analytics"
+        },
+        {
+          "type": "nav-link",
+          "label": "Projects"
+        },
+        {
+          "type": "nav-link",
+          "label": "Reports"
+        },
+        {
+          "type": "nav-link",
+          "label": "Settings"
+        },
+        {
+          "type": "input",
+          "label": "Search",
+          "placeholder": "Search\u2026",
+          "role": "search"
+        },
+        {
+          "type": "button",
+          "label": "Notifications",
+          "icon": "bell",
+          "variant": "icon"
+        },
+        {
+          "type": "avatar",
+          "label": "User Avatar",
+          "role": "profile-trigger"
+        },
+        {
+          "type": "card",
+          "label": "KPI Card 1",
+          "content": "Total Revenue"
+        },
+        {
+          "type": "card",
+          "label": "KPI Card 2",
+          "content": "Active Users"
+        },
+        {
+          "type": "card",
+          "label": "KPI Card 3",
+          "content": "New Orders"
+        },
+        {
+          "type": "card",
+          "label": "KPI Card 4",
+          "content": "Conversion Rate"
+        },
+        {
+          "type": "chart",
+          "label": "Line / Area Chart",
+          "role": "primary-chart"
+        },
+        {
+          "type": "chart",
+          "label": "Donut / Pie Chart",
+          "role": "secondary-chart"
+        },
+        {
+          "type": "table",
+          "label": "Data Table",
+          "role": "records-list"
+        },
+        {
+          "type": "badge",
+          "label": "Status Badge",
+          "variants": [
+            "success",
+            "warning",
+            "danger"
+          ]
+        },
+        {
+          "type": "button",
+          "label": "Export",
+          "variant": "outlined"
+        },
+        {
+          "type": "button",
+          "label": "Add New",
+          "variant": "primary"
+        },
+        {
+          "type": "select",
+          "label": "Date Range Filter",
+          "placeholder": "Last 30 days"
+        },
+        {
+          "type": "pagination",
+          "label": "Table Pagination"
+        },
+        {
+          "type": "tooltip",
+          "label": "Chart Tooltip",
+          "trigger": "hover"
+        },
+        {
+          "type": "divider",
+          "label": "Section Divider",
+          "orientation": "horizontal"
+        }
+      ],
+      "textContent": [
+        "Dashboard",
+        "Analytics",
+        "Projects",
+        "Reports",
+        "Settings",
+        "Search\u2026",
+        "Total Revenue",
+        "Active Users",
+        "New Orders",
+        "Conversion Rate",
+        "Export",
+        "Add New",
+        "Last 30 days",
+        "Overview",
+        "Recent Activity",
+        "Status",
+        "Name",
+        "Date",
+        "Amount",
+        "Actions",
+        "Showing 1\u201310 of 48 results",
+        "Next",
+        "Previous"
+      ],
+      "styles": {
+        "colors": [
+          "--color-primary: oklch(0.55 0.20 262)",
+          "--color-primary-hover: oklch(0.48 0.22 262)",
+          "--color-surface: oklch(0.99 0.00 0)",
+          "--color-surface-raised: oklch(0.97 0.00 0)",
+          "--color-surface-sunken: oklch(0.94 0.005 240)",
+          "--color-sidebar-bg: oklch(0.17 0.025 265)",
+          "--color-sidebar-text: oklch(0.88 0.01 250)",
+          "--color-sidebar-active: oklch(0.55 0.20 262)",
+          "--color-text-primary: oklch(0.18 0.01 260)",
+          "--color-text-secondary: oklch(0.50 0.01 255)",
+          "--color-border: oklch(0.88 0.005 240)",
+          "--color-success: oklch(0.68 0.18 155)",
+          "--color-warning: oklch(0.78 0.18 75)",
+          "--color-danger: oklch(0.62 0.22 25)",
+          "--color-chart-1: oklch(0.55 0.20 262)",
+          "--color-chart-2: oklch(0.70 0.16 195)",
+          "--color-chart-3: oklch(0.75 0.16 155)",
+          "--color-chart-4: oklch(0.72 0.18 50)"
+        ],
+        "spacingScale": "normal",
+        "borderRadius": "md",
+        "fontFamily": "Inter, \u0027Segoe UI\u0027, system-ui, sans-serif",
+        "fontSizeHierarchy": {
+          "display": "1.75rem / 700",
+          "heading": "1.25rem / 600",
+          "subheading": "1rem / 600",
+          "body": "0.875rem / 400",
+          "caption": "0.75rem / 400",
+          "label": "0.75rem / 500 / uppercase / tracked"
+        },
+        "themeMode": "light",
+        "userPreferenceNote": "User has expressed both light and dark theme preferences; most recent preference is light \u2014 analysis reflects the light theme visible in the image, with a dark sidebar accent panel following common hybrid dashboard conventions."
+      },
+      "responsiveStrategy": {
+        "breakpoints": {
+          "mobile": "\u003C 640px",
+          "tablet": "640px \u2013 1024px",
+          "desktop": "\u003E 1024px"
+        },
+        "mobile": {
+          "sidebar": "collapses to bottom tab-bar or off-canvas hamburger drawer",
+          "kpiRow": "stacks to 2-column grid then 1-column below 400px",
+          "chartSection": "single column, full-width stacked",
+          "table": "becomes horizontally scrollable card list",
+          "topbar": "logo \u002B hamburger icon only; search moves to collapsed modal"
+        },
+        "tablet": {
+          "sidebar": "icon-only rail (48px wide)",
+          "kpiRow": "2-column grid",
+          "chartSection": "single column stacked",
+          "table": "standard table with horizontal scroll"
+        }
+      },
+      "metadata": {
+        "imageWidth": 1440,
+        "imageHeight": 900,
+        "analyzedBy": "claude-sonnet-4.6",
+        "confidence": 0.78,
+        "analyzedAt": "2026-04-30T08:36:29.952Z"
+      }
     }
   ],
   "mergedStyles": {
@@ -1027,21 +1543,51 @@
       "--color-step-completed: oklch(0.62 0.17 145)",
       "--color-step-inactive: oklch(0.80 0.01 240)",
       "--color-badge-open: oklch(0.72 0.16 70)",
-      "--color-badge-high: oklch(0.58 0.20 25)"
+      "--color-badge-high: oklch(0.58 0.20 25)",
+      "--color-primary-hover: oklch(0.48 0.20 250)",
+      "--color-surface: oklch(1.0 0 0)",
+      "--color-surface-secondary: oklch(0.97 0.005 240)",
+      "--color-surface-card: oklch(1.0 0 0)",
+      "--color-text-primary: oklch(0.20 0.015 250)",
+      "--color-text-secondary: oklch(0.50 0.015 250)",
+      "--color-text-muted: oklch(0.65 0.01 240)",
+      "--color-success-surface: oklch(0.95 0.06 145)",
+      "--color-warning: oklch(0.70 0.16 65)",
+      "--color-warning-surface: oklch(0.96 0.07 75)",
+      "--color-danger: oklch(0.60 0.20 25)",
+      "--color-danger-surface: oklch(0.95 0.07 25)",
+      "--color-info: oklch(0.60 0.16 240)",
+      "--color-info-surface: oklch(0.95 0.05 240)",
+      "--color-topbar-bg: oklch(0.25 0.08 252)",
+      "--color-primary: oklch(0.55 0.20 262)",
+      "--color-primary-hover: oklch(0.48 0.22 262)",
+      "--color-surface-raised: oklch(0.97 0.00 0)",
+      "--color-surface-sunken: oklch(0.94 0.005 240)",
+      "--color-sidebar-bg: oklch(0.17 0.025 265)",
+      "--color-sidebar-text: oklch(0.88 0.01 250)",
+      "--color-sidebar-active: oklch(0.55 0.20 262)",
+      "--color-text-primary: oklch(0.18 0.01 260)",
+      "--color-text-secondary: oklch(0.50 0.01 255)",
+      "--color-success: oklch(0.68 0.18 155)",
+      "--color-warning: oklch(0.78 0.18 75)",
+      "--color-danger: oklch(0.62 0.22 25)",
+      "--color-chart-1: oklch(0.55 0.20 262)",
+      "--color-chart-2: oklch(0.70 0.16 195)",
+      "--color-chart-3: oklch(0.75 0.16 155)",
+      "--color-chart-4: oklch(0.72 0.18 50)"
     ],
     "spacingScale": "normal",
     "borderRadius": "md",
-    "fontFamily": "Inter, system-ui, -apple-system, sans-serif",
+    "fontFamily": "Inter, \u0027Segoe UI\u0027, system-ui, sans-serif",
     "fontSizeHierarchy": {
-      "pageTitle": "1.5rem / 600 weight",
-      "sectionTitle": "1.1rem / 600 weight",
-      "label": "0.875rem / 500 weight",
-      "body": "0.875rem / 400 weight",
-      "caption": "0.75rem / 400 weight",
-      "badge": "0.70rem / 600 weight"
+      "display": "1.75rem / 700",
+      "heading": "1.25rem / 600",
+      "subheading": "1rem / 600",
+      "body": "0.875rem / 400",
+      "caption": "0.75rem / 400",
+      "label": "0.75rem / 500 / uppercase / tracked"
     },
     "themeMode": "light",
-    "shadowScale": "sm",
-    "notes": "Brukerpreferanse angir lyst tema som siste valg \u2013 analysen bekrefter lyst design med hvit/gr\u00E5 overflatepalett og m\u00F8rk tekst."
+    "userPreferenceNote": "User has expressed both light and dark theme preferences; most recent preference is light \u2014 analysis reflects the light theme visible in the image, with a dark sidebar accent panel following common hybrid dashboard conventions."
   }
 }

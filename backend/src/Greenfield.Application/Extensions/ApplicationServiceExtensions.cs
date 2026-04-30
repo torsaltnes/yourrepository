@@ -1,4 +1,5 @@
 using Greenfield.Application.Abstractions;
+using Greenfield.Application.Dashboard;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Greenfield.Application.Extensions;
@@ -9,6 +10,7 @@ public static class ApplicationServiceExtensions
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
         services.AddSingleton<IDeviationService, Greenfield.Application.Deviations.DeviationService>();
+        services.AddSingleton<IDashboardService, DashboardService>();
         return services;
     }
 }

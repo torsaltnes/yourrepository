@@ -3,10 +3,17 @@ export type DeviationType = 'Deviation' | 'NonConformance' | 'Incident' | 'NearM
 export type DeviationSeverity = 'Critical' | 'High' | 'Medium' | 'Low';
 export type DeviationStatus =
   | 'Registered'
-  | 'Assessed'
-  | 'Investigating'
+  | 'UnderAssessment'
+  | 'UnderInvestigation'
   | 'CorrectiveAction'
   | 'Closed';
+export type DeviationCategory =
+  | 'Quality'
+  | 'Safety'
+  | 'Environmental'
+  | 'Process'
+  | 'Product'
+  | 'Other';
 export type TimelineEventType =
   | 'Created'
   | 'StatusChange'
@@ -106,8 +113,8 @@ export interface AttachmentDto {
 // ── Workflow metadata ─────────────────────────────────────────────────────────
 export const WORKFLOW_STEPS: DeviationStatus[] = [
   'Registered',
-  'Assessed',
-  'Investigating',
+  'UnderAssessment',
+  'UnderInvestigation',
   'CorrectiveAction',
   'Closed',
 ];
@@ -126,26 +133,35 @@ export const DEVIATION_SEVERITY_LABELS: Record<DeviationSeverity, string> = {
   Low: 'Low',
 };
 
+export const DEVIATION_CATEGORY_LABELS: Record<DeviationCategory, string> = {
+  Quality: 'Quality',
+  Safety: 'Safety',
+  Environmental: 'Environmental',
+  Process: 'Process',
+  Product: 'Product',
+  Other: 'Other',
+};
+
 export const DEVIATION_STATUS_LABELS: Record<DeviationStatus, string> = {
   Registered: 'Registered',
-  Assessed: 'Assessed',
-  Investigating: 'Investigating',
+  UnderAssessment: 'Under Assessment',
+  UnderInvestigation: 'Under Investigation',
   CorrectiveAction: 'Corrective Action',
   Closed: 'Closed',
 };
 
 export const WORKFLOW_STEP_LABELS: Record<DeviationStatus, string> = {
   Registered: 'Register',
-  Assessed: 'Assess',
-  Investigating: 'Investigate',
+  UnderAssessment: 'Assess',
+  UnderInvestigation: 'Investigate',
   CorrectiveAction: 'Corrective Action',
   Closed: 'Close',
 };
 
 export const NEXT_STATUS_LABELS: Record<DeviationStatus, string> = {
-  Registered: 'Mark as Assessed',
-  Assessed: 'Begin Investigation',
-  Investigating: 'Start Corrective Action',
+  Registered: 'Begin Assessment',
+  UnderAssessment: 'Begin Investigation',
+  UnderInvestigation: 'Start Corrective Action',
   CorrectiveAction: 'Close Deviation',
   Closed: 'Closed',
 };
