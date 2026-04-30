@@ -47,6 +47,7 @@ app.UseCors();
 // ── Endpoints ─────────────────────────────────────────────────────────────
 app.MapHealthEndpoints();
 app.MapDeviationEndpoints();
+app.MapDashboardEndpoints();
 
 app.Run();
 

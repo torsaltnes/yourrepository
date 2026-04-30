@@ -18,3 +18,9 @@ For FEAT-006 planning, chose a split contract strategy for the dashboard: add a 
 
 ---
 
+## [CodingAgent] 2026-04-30 09:21:19 UTC
+
+Implemented FEAT-006 as a backend-driven dashboard summary instead of extending the seeded dashboard store, because the plan required the dashboard to reflect the live deviations domain and keeping aggregation logic in the application layer avoids duplicating business rules across Angular and .NET. Also aligned frontend status strings and recent-deviation row typing to the actual backend contract after verification exposed a mismatch that would have passed compile-time checks but failed at runtime.
+
+---
+
