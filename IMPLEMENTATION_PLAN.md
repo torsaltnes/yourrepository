@@ -1,748 +1,460 @@
-# IMPLEMENTATION_PLAN.md
+# IMPLEMENTATION_PLAN
 
-## 1. Feature Summary
+## 1. Feature Goal
 
-**Feature:** Deviation / Non-conformity Management (`FEAT-002`)
+Deliver FEAT-006 as a production-ready deviation management dashboard that replaces the current seeded/mock dashboard with a responsive, data-driven experience backed by the existing deviations domain and a new dashboard summary API.
 
-Implement a full-stack deviation management workflow with:
-- deviation list view with search, filters, badges, pagination, and export
-- new deviation registration flow
-- multi-step deviation processing workflow (`Register -> Assess -> Investigate -> Corrective Action -> Close`)
-- activity timeline and attachment handling
-- in-memory .NET 10 REST API with Angular 20 + Tailwind 4 frontend
+## 2. Current-State Findings
 
-This plan keeps the existing architecture intact:
-- **Frontend:** Angular 20 standalone app with signals, lazy routes, Tailwind 4
-- **Backend:** .NET 10 Minimal API + Clean Architecture (`Domain -> Application -> Infrastructure -> API`)
-- **Storage:** in-memory repository backed by thread-safe collections
+### 2.1 Repository and stack
+- Monorepo with `frontend/` (Angular 20 + Tailwind CSS 4 + Chart.js/ng2-charts) and `backend/` (.NET minimal API with Application/Domain/Infrastructure layering).
+- Root `.gitignore` already exists.
+- `frontend/package.json` already includes:
+  - `@angular/*` 20.x
+  - `chart.js` 4.4.x
+  - `ng2-charts` 7.x
+  - `tailwindcss` 4.x
+  - `@tailwindcss/postcss`
+- `backend/src/Greenfield.Api/Program.cs` already follows the expected minimal API pattern:
+  - default CORS for `http://localhost:4200` and `https://localhost:4200`
+  - `JsonStringEnumConverter`
+  - conditional `UseHttpsRedirection()` outside development
+  - endpoint registration via `app.MapDeviationEndpoints()`
 
----
+### 2.2 Existing domain and frontend assets
+- Deviations domain/application already exists and should be reused for dashboard data.
+- Existing dashboard state is currently seeded/mock (`frontend/src/app/features/dashboard/data/dashboard.store.ts`).
+- Existing deviations list/store feature already handles filters, paging, badges, and export; this should be reused for the dashboard table rather than re-inventing list semantics.
 
-## 2. Relevant Existing Context
-
-### Frontend
-- `frontend/src/main.ts` already bootstraps with `bootstrapApplication()`.
-- `frontend/src/app/app.config.ts` already uses `provideRouter()`, `provideHttpClient()`, and `provideCharts()`.
-- `frontend/src/app/app.routes.ts` already lazy-loads feature pages through the shell.
-- `frontend/src/app/layout/shell.component.ts` is the correct place to expose navigation to the new feature.
-- `frontend/package.json` already includes Angular 20, Tailwind 4, `@tailwindcss/postcss`, `chart.js`, and `ng2-charts`.
-
-### Backend
-- `backend/src/Greenfield.Api/Program.cs` already configures CORS, OpenAPI, and endpoint wiring.
-- `backend/src/Greenfield.Api/Endpoints/HealthEndpoints.cs` establishes the current endpoint-group pattern.
-- `backend/src/Greenfield.Application/Extensions/ApplicationServiceExtensions.cs` and `backend/src/Greenfield.Infrastructure/Extensions/InfrastructureServiceExtensions.cs` are the correct extension points for new registrations.
-- Existing backend structure already aligns with Clean Architecture.
-
-### Visual Manifest Implications
-The visual manifest and intake summary require:
-- **desktop sidebar + mobile bottom-sheet filters**
-- **desktop table + mobile card list**
-- **color-coded status/severity badges**
-- **two-column process screen with metadata sidebar**
-- **horizontal workflow stepper**
-- **timeline and attachment card**
-- **OKLCH-based design tokens for blue/red/orange/green status system**
-
----
+### 2.3 Visual manifest implications
+The visual manifest and feature analysis point to:
+- top bar + sidebar shell
+- 4 KPI cards
+- dual-chart layout (line/area trend + doughnut/pie status distribution)
+- filter/search/date controls
+- paginated table on desktop
+- mobile fallback to stacked cards with collapsed sidebar
+- Tailwind v4 theme tokens using OKLCH values, with a dark sidebar accent and semantic status colors
 
 ## 3. Architecture Decisions
 
-1. **Do not introduce NgModules or external state libraries.**
-   - Use Angular standalone components only.
-   - Use signals, computed values, effects, and `resource()` / `rxResource()` style loading for async state.
+1. **Keep the backend split by Clean Architecture layers** and add dashboard-specific query/read-model logic without moving deviation CRUD logic.
+2. **Add one new dashboard summary endpoint** for KPI + chart aggregates, while **reusing the existing deviations list endpoint** for the table/filter/pagination experience.
+3. **Keep Angular standalone + signals architecture**:
+   - standalone components only
+   - `inject()` for DI
+   - `signal()`, `computed()`, `effect()`, and `resource()`/`rxResource()` for state and async loading
+   - built-in control flow (`@if`, `@for`, `@switch`)
+4. **Use `ng2-charts` with Chart.js** rather than introducing a new chart library, because both dependencies are already present and align with Angular standalone bootstrap via `provideCharts(withDefaultRegisterables())`.
+5. **Use Tailwind CSS 4 CSS-first theming** in the frontend stylesheet with `@theme` + `@source` and no `tailwind.config.js` theme customization.
+6. **Do not introduce auth changes**. The dashboard remains accessible without login/guard changes.
 
-2. **Do not introduce a database yet.**
-   - Use an in-memory repository with `ConcurrentDictionary<Guid, Deviation>` plus deterministic seed data.
-   - Shape the API as if it were backed by a real persistence layer so the repository can later be swapped for EF Core with minimal API changes.
+## 4. Target Solution Overview
 
-3. **Keep the workflow explicit in the API.**
-   - Use step-specific update endpoints instead of one giant polymorphic payload.
-   - This keeps validation, activity logging, and future persistence rules clear.
+### 4.1 Data flow
+- Dashboard page loads two data streams:
+  1. `GET /api/dashboard/summary` for KPI cards + trend chart + status distribution
+  2. existing deviations list endpoint for the table/filter/pagination data
+- Frontend store owns UI filter state and coordinates API calls.
+- Backend summary service aggregates from the deviations data source instead of returning client-side mock data.
 
-4. **Treat export and attachments as first-class parts of the feature.**
-   - Export will be handled through an API endpoint so filtering + pagination rules remain server-owned.
-   - Attachments will be stored in memory with strict size limits and metadata in the detail DTO.
-
-5. **No new UI component library.**
-   - Build the experience with Tailwind utilities, CSS theme tokens, and native Angular forms.
-   - Keep `ng2-charts`/`chart.js` unchanged; deviation screens should use summary cards rather than new charts in v1.
-
----
-
-## 4. Target User Flows
-
-### 4.1 List Flow
-1. User opens `deviations` route.
-2. Frontend loads lookup data and first page of deviations.
-3. User can:
-   - search by title / deviation number
-   - filter by status, severity, category, responsible person, and date range
-   - paginate results
-   - export filtered results
-   - open an existing deviation
-   - start a new deviation
-
-### 4.2 Registration Flow
-1. User opens `deviations/new`.
-2. User completes registration fields.
-3. API creates the deviation, generates a human-readable deviation number, logs a `Registered` activity, and returns the created detail payload.
-4. Frontend redirects to `deviations/:id?step=register`.
-
-### 4.3 Processing Flow
-1. User opens `deviations/:id`.
-2. Frontend loads the detail DTO containing metadata, workflow step, timeline, and attachments.
-3. User edits the active workflow section.
-4. API validates and saves only the current section.
-5. User advances step; API updates status/current step and appends activity entries.
-6. Final close action sets closed state and closure timestamps.
-
----
+### 4.2 Page composition
+- App shell/top bar/sidebar structure aligned to the visual manifest
+- KPI grid (4 cards)
+- trend chart card
+- status distribution chart card
+- recent/paged deviations table
+- mobile card-list alternative for narrow screens
 
 ## 5. Backend Design
 
-### 5.1 Domain Model
+### 5.1 New API contract
+Create a dashboard-focused read contract.
 
-Create a new `Deviations` domain slice under `backend/src/Greenfield.Domain/Deviations/`.
+**Endpoint**
+- `GET /api/dashboard/summary`
 
-#### Core aggregate
-`Deviation`
-- `Id: Guid`
-- `DeviationNumber: string` (example: `DEV-2026-0001`)
-- `Title: string`
-- `Description: string`
-- `Category: string`
-- `Severity: DeviationSeverity`
-- `Status: DeviationStatus`
-- `CurrentStep: DeviationWorkflowStep`
-- `DiscoveryDate: DateTimeOffset`
-- `Reporter: string`
-- `ResponsiblePerson: string`
-- `Deadline: DateTimeOffset?`
-- `CreatedAt: DateTimeOffset`
-- `UpdatedAt: DateTimeOffset`
-- `ClosedAt: DateTimeOffset?`
-- `Assessment: DeviationAssessment?`
-- `Investigation: DeviationInvestigation?`
-- `CorrectiveAction: DeviationCorrectiveAction?`
-- `Closure: DeviationClosure?`
-- `Attachments: IReadOnlyList<DeviationAttachment>`
-- `Activity: IReadOnlyList<DeviationActivityEntry>`
+**Query parameters**
+- `from` (`DateTimeOffset?`): optional lower date bound
+- `to` (`DateTimeOffset?`): optional upper date bound
 
-#### Supporting records / value objects
-- `DeviationAssessment`
-- `DeviationInvestigation`
-- `DeviationCorrectiveAction`
-- `DeviationClosure`
-- `DeviationAttachment`
-- `DeviationActivityEntry`
+**Response shape**
+- `DashboardSummaryDto`
+  - `DashboardKpisDto kpis`
+  - `DashboardTrendPointDto[] trend`
+  - `DashboardStatusSliceDto[] statusDistribution`
 
-#### Enums
-- `DeviationSeverity`: `Low | Medium | High | Critical`
-- `DeviationStatus`: `Open | InProgress | Closed`
-- `DeviationWorkflowStep`: `Register | Assess | Investigate | CorrectiveAction | Close`
-- `DeviationActivityType`: `Registered | Updated | Assigned | StepAdvanced | AttachmentAdded | Closed | Exported`
+**Recommended DTO structure**
+- `DashboardSummaryDto`
+- `DashboardKpisDto`
+  - `total`
+  - `open`
+  - `underTreatment`
+  - `closed`
+- `DashboardTrendPointDto`
+  - `bucketStart`
+  - `openedCount`
+  - `closedCount`
+- `DashboardStatusSliceDto`
+  - `status`
+  - `count`
+  - `percentage`
 
-**Important:** configure string enum serialization at the API boundary so Angular receives readable values, not numeric enums.
+Notes:
+- Keep the table on the existing deviations endpoint so filter/paging behavior stays consistent with the current deviations feature.
+- Serialize enums as strings; `Program.cs` is already configured for this.
 
-### 5.2 Application Layer
+### 5.2 Application layer changes
+Create a dedicated dashboard query service in the Application layer.
 
-Create application abstractions and DTOs under `backend/src/Greenfield.Application/Deviations/`.
+**Responsibilities**
+- validate date-range inputs
+- request aggregate data from infrastructure/repositories
+- map domain aggregation results to DTO records
+- enforce consistent period bucketing for the trend chart
+- keep library-project awaits on `.ConfigureAwait(false)`
 
-#### Interfaces
-- `IDeviationService`
-- `IDeviationRepository`
-- `IDeviationLookupProvider` (or equivalent lightweight abstraction)
+**Recommended files**
+- `backend/src/Greenfield.Application/Dashboard/Contracts/DashboardSummaryDto.cs`
+- `backend/src/Greenfield.Application/Dashboard/Contracts/DashboardKpisDto.cs`
+- `backend/src/Greenfield.Application/Dashboard/Contracts/DashboardTrendPointDto.cs`
+- `backend/src/Greenfield.Application/Dashboard/Contracts/DashboardStatusSliceDto.cs`
+- `backend/src/Greenfield.Application/Dashboard/Contracts/GetDashboardSummaryQuery.cs`
+- `backend/src/Greenfield.Application/Dashboard/IDashboardService.cs`
+- `backend/src/Greenfield.Application/Dashboard/DashboardService.cs`
 
-#### Request records
-Use `record` types for all request models:
-- `CreateDeviationRequest`
-- `SaveDeviationRegistrationRequest`
-- `SaveDeviationAssessmentRequest`
-- `SaveDeviationInvestigationRequest`
-- `SaveDeviationCorrectiveActionRequest`
-- `CloseDeviationRequest`
-- `AdvanceDeviationStepRequest`
-- `DeviationQueryRequest`
+**Implementation notes**
+- Use `record` DTOs/query objects.
+- Use a `sealed` service class with a primary constructor.
+- Keep query logic read-only and separate from mutation use-cases.
+- Reuse existing deviation repository abstractions where possible; add read-model methods only where current abstractions cannot efficiently support aggregation.
 
-#### Response records
-- `DeviationListItemDto`
-- `DeviationDetailDto`
-- `DeviationLookupDto`
-- `DeviationAttachmentDto`
-- `DeviationActivityDto`
-- `PagedResultDto<T>`
-- optional `ExportFileDto` only if an application-level wrapper is preferred
+### 5.3 Infrastructure changes
+Add efficient dashboard aggregation support in Infrastructure.
 
-#### Service responsibilities
-`DeviationService` should:
-- validate all command payloads
-- generate deviation numbers
-- translate repository entities to DTOs
-- enforce workflow transition rules
-- append activity timeline entries automatically
-- apply list filtering, search, sort, and pagination
-- produce CSV export content for filtered results
-- enforce attachment rules (allowed types, max size, metadata generation)
+**Required capabilities**
+- count deviations by status for current filter range
+- compute total deviations and KPI metrics
+- group deviations by time bucket for trend chart
+- return counts for status distribution
 
-**Validation rules (minimum):**
-- `Title`, `Category`, `Reporter`, `ResponsiblePerson` required
-- `Description` required for registration
-- `DiscoveryDate` required
-- `Deadline >= DiscoveryDate` when provided
-- cannot close unless corrective action exists
-- step transitions must be sequential unless explicitly reopening is later approved
+**Preferred approach**
+- extend the existing deviation repository/data source abstraction with dedicated aggregation methods instead of materializing all deviations into memory on every request
+- if the current project still uses seeded/in-memory data, keep the same abstraction so the implementation can later swap to database-backed grouping without API changes
 
-### 5.3 Infrastructure Layer
+**Likely file touch points**
+- existing deviation repository interface and implementation(s)
+- `backend/src/Greenfield.Infrastructure/Extensions/...` service registration file(s)
 
-Create `backend/src/Greenfield.Infrastructure/Deviations/`.
+### 5.4 API layer changes
+Add a new minimal API endpoint group for dashboard summary data.
 
-#### Repository implementation
-`InMemoryDeviationRepository`
-- backed by `ConcurrentDictionary<Guid, Deviation>`
-- maintain a thread-safe sequence counter for `DeviationNumber`
-- expose async methods even though the implementation is in-memory
-- preserve order by `CreatedAt desc` for list results unless an alternate sort is requested later
+**Recommended files**
+- `backend/src/Greenfield.Api/Endpoints/DashboardEndpoints.cs`
+- modify `backend/src/Greenfield.Api/Program.cs`
 
-#### Seed data
-`DeviationSeedData`
-- preload representative records across all statuses and severities
-- include enough data to exercise paging, filter states, timeline rendering, and badge colors
-- include at least one record per workflow step
+**Endpoint behavior**
+- map `/api/dashboard` with `.WithTags("Dashboard")`
+- expose `MapGet("/summary", ...)`
+- return `TypedResults.Ok(...)` on success
+- return `TypedResults.BadRequest(...)` for invalid date ranges (`from > to`, unsupported span if capped)
 
-#### Lookup provider
-Return static lists for:
-- categories
-- responsible people
-- status options
-- severity options
-- workflow steps
+**Program.cs updates**
+- register dashboard services via Application/Infrastructure extensions
+- call `app.MapDashboardEndpoints()`
+- keep current CORS and enum JSON settings intact
 
-### 5.4 API Layer
-
-Add `backend/src/Greenfield.Api/Endpoints/DeviationEndpoints.cs` and wire it from `Program.cs`.
-
-#### Endpoint group
-- Base route: `/api/deviations`
-- Apply `.WithTags("Deviations")`
-- Keep endpoint handlers small; delegate business logic to `IDeviationService`
-
-#### Proposed endpoints
-
-| Method | Route | Purpose |
-|---|---|---|
-| `GET` | `/api/deviations` | paged list with filters/search |
-| `GET` | `/api/deviations/{id:guid}` | detail payload |
-| `POST` | `/api/deviations` | create new deviation |
-| `PUT` | `/api/deviations/{id:guid}/registration` | save registration section |
-| `PUT` | `/api/deviations/{id:guid}/assessment` | save assessment section |
-| `PUT` | `/api/deviations/{id:guid}/investigation` | save investigation section |
-| `PUT` | `/api/deviations/{id:guid}/corrective-action` | save corrective action section |
-| `PUT` | `/api/deviations/{id:guid}/closure` | close deviation |
-| `POST` | `/api/deviations/{id:guid}/advance-step` | move to next workflow step |
-| `POST` | `/api/deviations/{id:guid}/attachments` | upload attachment |
-| `GET` | `/api/deviations/{id:guid}/attachments/{attachmentId:guid}` | download attachment |
-| `GET` | `/api/deviations/lookups` | dropdown/filter options |
-| `GET` | `/api/deviations/export` | CSV export of filtered results |
-
-#### API behavior
-- Use `TypedResults.Ok`, `Created`, `BadRequest`, `NotFound`, `ValidationProblem`.
-- Keep `IResult` signatures in endpoint handlers.
-- Use `JsonStringEnumConverter` for enum serialization.
-- Return ISO 8601 strings for all dates.
-- Keep CORS aligned with Angular localhost.
-
-### 5.5 Program and Hosting Updates
-
-Update `backend/src/Greenfield.Api/Program.cs` to:
-- register deviation endpoints
-- register deviation services/repositories in the existing extension methods
-- keep `app.UseHttpsRedirection()` guarded by `!app.Environment.IsDevelopment()`
-- preserve local Angular origins in CORS (`http://localhost:4200`, `https://localhost:4200`)
-- keep OpenAPI enabled
-
-Create or update `backend/src/Greenfield.Api/Properties/launchSettings.json` with:
-- `http` profile on port `5000`
-- `https` profile on port `5001` and `http://localhost:5000`
-
----
+### 5.5 Backend validation rules
+- reject invalid date ranges where `from > to`
+- standardize trend bucket granularity (weekly or monthly; monthly is the safer default for dashboard readability)
+- use UTC/`DateTimeOffset` consistently end-to-end
+- do not localize enum/string values in the API; keep transport values stable and let the frontend handle display labels
 
 ## 6. Frontend Design
 
-### 6.1 Routing
+### 6.1 Routing and feature ownership
+The new dashboard should replace the current dashboard landing experience rather than coexist with seeded content.
 
-Update `frontend/src/app/app.routes.ts` to add a new lazy feature under the shell:
-- `/deviations` -> list page
-- `/deviations/new` -> editor page in create mode
-- `/deviations/:id` -> editor page in workflow/detail mode
+**Recommended file touch points**
+- `frontend/src/app/app.routes.ts`
+- existing dashboard page entry file(s)
 
-Update `frontend/src/app/layout/shell.component.ts` to add a navigation entry for the deviation feature.
+**Routing behavior**
+- keep dashboard route unguarded
+- lazy-load heavy dashboard feature code if not already lazy-loaded
+- preserve navigation path consistency from the visual design/sidebar
 
-### 6.2 Feature Structure
+### 6.2 State management strategy
+Refactor `frontend/src/app/features/dashboard/data/dashboard.store.ts` into a real API-backed signal store.
 
-Create a dedicated feature folder:
+**Store responsibilities**
+- own date-range and status/search UI filters used by the dashboard shell
+- load dashboard summary via `rxResource()` or equivalent signal-driven async pattern
+- coordinate the existing deviations list/table source for paged rows
+- expose `loading`, `error`, and `emptyState` signals
+- map API DTOs into chart datasets/options for presentational components
 
-`frontend/src/app/features/deviations/`
-- `deviations.page.ts` (list page)
-- `deviation-editor.page.ts` (new + detail/process page)
-- `components/`
-  - `deviation-filter-panel.component.ts`
-  - `deviation-table.component.ts`
-  - `deviation-card-list.component.ts`
-  - `deviation-form.component.ts`
-  - `deviation-workflow-stepper.component.ts`
-  - `deviation-metadata-sidebar.component.ts`
-  - `deviation-activity-timeline.component.ts`
-  - `deviation-attachments.component.ts`
-- `data/`
-  - `deviation-api.service.ts`
-  - `deviation-list.store.ts`
-  - `deviation-editor.store.ts`
-- `models/`
-  - `deviation.models.ts`
-  - `deviation-filters.models.ts`
+**Signals to maintain**
+- `filters`
+- `summaryResource` / `summary`
+- `tableQuery`
+- `selectedStatus`
+- `searchTerm`
+- `dateRange`
+- `isMobileSidebarOpen`
+- computed `kpis`, `trendChartData`, `statusChartData`, `recentRows`
 
-### 6.3 State Management
+### 6.3 Component structure
+Create a container/presentational split so the page remains maintainable.
 
-#### API service
-`deviation-api.service.ts`
-- `providedIn: 'root'`
-- use `inject(HttpClient)`
-- expose strongly typed methods for every endpoint
-- no `BehaviorSubject`
+**Recommended frontend files**
+- `frontend/src/app/features/dashboard/dashboard.page.ts`
+- `frontend/src/app/features/dashboard/data/dashboard-api.service.ts`
+- `frontend/src/app/features/dashboard/data/dashboard.models.ts`
+- `frontend/src/app/features/dashboard/components/dashboard-shell.component.ts`
+- `frontend/src/app/features/dashboard/components/dashboard-filter-bar.component.ts`
+- `frontend/src/app/features/dashboard/components/deviation-kpi-card.component.ts`
+- `frontend/src/app/features/dashboard/components/deviation-trend-chart.component.ts`
+- `frontend/src/app/features/dashboard/components/status-distribution-chart.component.ts`
+- `frontend/src/app/features/dashboard/components/recent-deviations-table.component.ts`
+- `frontend/src/app/features/dashboard/components/recent-deviations-mobile-list.component.ts`
 
-#### List store
-`deviation-list.store.ts`
-- signals for filters, page, pageSize, search text, rows-per-page, filter drawer state
-- `resource()` or `rxResource()` for list loading keyed by active filters/page
-- computed values for badge counts, empty-state messaging, and current query string
-- export action calls the CSV endpoint and triggers download
-
-#### Editor store
-`deviation-editor.store.ts`
-- signal for current deviation id
-- resource for detail loading
-- signal for active workflow step, dirty state, saving state, attachment upload state
-- methods to save each section and advance steps
-- patch reactive forms from loaded data via `effect()`
-
-### 6.4 Forms and Workflow
-
-Use Angular Reactive Forms for the main editor because the workflow is form-heavy.
-
-#### Registration section
-Fields:
-- title
-- description
-- category
-- severity
-- discovery date
-- reporter
-- responsible person
-- deadline
-
-#### Assessment section
-Fields:
-- impact summary
-- immediate containment action
-- assessed by
-- assessed at
-
-#### Investigation section
-Fields:
-- root cause
-- investigation summary
-- investigator
-- investigated at
-
-#### Corrective action section
-Fields:
-- action plan
-- action owner
-- target completion date
-- verification notes
-
-#### Closure section
-Fields:
-- closure summary
-- verified by
-- closed at
-
-Use:
-- `@if`, `@for`, `@switch`
-- `OnPush`
+**Component rules**
+- standalone components only
+- `ChangeDetectionStrategy.OnPush`
 - `inject()` instead of constructor injection
-- `takeUntilDestroyed()` where subscriptions are unavoidable
-- `@defer` for below-the-fold timeline and attachments panels
+- built-in control flow only
+- use `@defer` for chart components if initial bundle size/layout jank becomes noticeable
 
-### 6.5 UI Composition from Visual Manifest
+### 6.4 Reuse of existing deviations feature
+Avoid duplicating deviation list logic.
 
-#### List page
-- breadcrumb + title `Avviksliste`
-- primary action `+ Nytt avvik`
-- top search field
-- inline quick filters
-- advanced filter panel
-- desktop table with zebra striping, hover states, chevron expansion
-- mobile card list
-- pagination footer
-- export button
+**Preferred reuse path**
+- extract or reuse a deviations API/query service so both:
+  - `deviation-list.page`
+  - dashboard table section
+  consume the same backend contract
 
-#### Filter panel
-- desktop: left sidebar or persistent panel
-- mobile: bottom-sheet / slide-up drawer controlled by a signal
-- controls: status, category, responsible person, priority/severity, date from/to, reset/apply buttons
+**If current list store is tightly page-coupled**
+- factor HTTP calls into a shared service such as:
+  - `frontend/src/app/features/deviations/data/deviation-api.service.ts`
+- keep page-specific selection/filter UI logic in each store/page
 
-#### Editor page
-- top breadcrumb
-- workflow stepper
-- left main form panel
-- right metadata sidebar with status, severity, timestamps, and responsible person
-- attachment card
-- timeline component
-- footer actions: save draft, next step, cancel
+### 6.5 Chart integration
+Use existing `ng2-charts` + Chart.js dependencies.
 
-### 6.6 Styling Strategy (Tailwind 4)
+**Bootstrap requirement**
+- update `frontend/src/main.ts` to register chart providers once:
+  - `provideCharts(withDefaultRegisterables())`
 
-Update `frontend/src/styles.css` (or the stylesheet configured by `frontend/angular.json`) to ensure:
-- `@import "tailwindcss"`
-- `@source "./src/app/**/*.ts"`
-- design tokens in `@theme`
+**Chart design**
+- line/area chart for deviation trend over time
+  - datasets: opened vs closed counts
+  - use soft fill beneath at least one dataset
+- doughnut chart for status distribution
+  - legend displayed on desktop, simplified or stacked below chart on mobile
+- configure `responsive: true`
+- allow `maintainAspectRatio: false` inside fixed-height dashboard cards
+- centralize color tokens from CSS variables/OKLCH theme mapping
 
-Add/confirm tokens for:
-- `--color-primary`
-- `--color-danger`
-- `--color-warning`
-- `--color-success`
-- `--color-surface`
-- `--color-surface-muted`
-- `--color-border`
-- spacing/radius/shadow tokens for cards, filters, tables, and stepper pills
+### 6.6 Tailwind CSS 4 and theming
+Use Tailwind v4 CSS-first theming in the main stylesheet.
 
-Use these tokens to drive:
-- status badges (`Open`, `InProgress`, `Closed`)
-- severity badges (`Low`, `Medium`, `High`, `Critical`)
-- active/completed/inactive stepper states
-- desktop/mobile surface consistency
+**Required stylesheet updates**
+- `frontend/src/styles.css`
 
-### 6.7 Accessibility and Responsiveness
+**Required contents**
+- `@import "tailwindcss";`
+- `@source "./src/**/*.ts";`
+- `@theme { ... }` with dashboard tokens for:
+  - primary purple
+  - sidebar surface
+  - semantic success/warning/danger/info colors
+  - card/background/border/text tokens
+  - spacing/radius/shadow tokens as needed
 
-Mandatory implementation details:
-- all controls must have labels
-- stepper must be keyboard reachable
-- filter drawer must support focus management and dismiss actions
-- color-coded states must always include text labels
-- mobile card layout must preserve table meaning via explicit field labels
-- use semantic headings and button labels matching the workflow actions
+**Design token guidance**
+- keep OKLCH values in CSS custom properties
+- no hardcoded hex utilities in templates
+- use `gap-*`, grid, and responsive variants instead of spacing hacks
+- add dark-sidebar treatment via theme tokens rather than ad hoc inline values
 
----
+### 6.7 Responsive behavior
+Implement the responsive rules implied by the sketches.
 
-## 7. API Contract
+**Desktop (1280–1440px)**
+- persistent sidebar
+- 4-column KPI grid
+- 2-column charts row
+- full data table with pagination/actions
 
-### 7.1 Query Contract
+**Tablet**
+- 2-column KPI layout
+- charts stack if width is constrained
+- filters wrap cleanly
 
-`GET /api/deviations`
+**Mobile (375px class)**
+- collapsible/drawer sidebar
+- KPI cards stack vertically
+- charts stack vertically with fixed card heights
+- table replaced by card-list representation with key fields + status badge + primary action
 
-Query parameters:
-- `search: string?`
-- `status: DeviationStatus?`
-- `severity: DeviationSeverity?`
-- `category: string?`
-- `responsiblePerson: string?`
-- `from: DateTimeOffset?`
-- `to: DateTimeOffset?`
-- `page: int = 1`
-- `pageSize: int = 10`
+### 6.8 UX details
+- keep Norwegian-facing labels if the design language requires it, but keep API values language-neutral/stable
+- surface loading/skeleton states for cards and charts
+- show empty state when no deviations match current filters
+- preserve status/severity badge styling consistency with the existing deviations feature
 
-Response:
-- `PagedResultDto<DeviationListItemDto>`
+## 7. File-by-File Change Plan
 
-### 7.2 List DTO
+### 7.1 Backend
 
-`DeviationListItemDto`
-- `id: Guid`
-- `deviationNumber: string`
-- `title: string`
-- `status: DeviationStatus`
-- `severity: DeviationSeverity`
-- `responsiblePerson: string`
-- `deadline: DateTimeOffset?`
-- `createdAt: DateTimeOffset`
-- `currentStep: DeviationWorkflowStep`
-
-### 7.3 Detail DTO
-
-`DeviationDetailDto`
-- list fields above, plus:
-- `description: string`
-- `category: string`
-- `reporter: string`
-- `discoveryDate: DateTimeOffset`
-- `updatedAt: DateTimeOffset`
-- `closedAt: DateTimeOffset?`
-- `assessment: DeviationAssessmentDto | null`
-- `investigation: DeviationInvestigationDto | null`
-- `correctiveAction: DeviationCorrectiveActionDto | null`
-- `closure: DeviationClosureDto | null`
-- `attachments: DeviationAttachmentDto[]`
-- `activity: DeviationActivityDto[]`
-
-### 7.4 Lookup DTO
-
-`DeviationLookupDto`
-- `categories: string[]`
-- `responsiblePeople: string[]`
-- `statuses: DeviationStatus[]`
-- `severities: DeviationSeverity[]`
-- `workflowSteps: DeviationWorkflowStep[]`
-
-### 7.5 Attachment Contract
-
-Upload:
-- `multipart/form-data`
-- server applies max size limit and allowed extension/content-type checks
-
-Metadata response:
-- `id: Guid`
-- `fileName: string`
-- `contentType: string`
-- `sizeInBytes: long`
-- `uploadedAt: DateTimeOffset`
-- `uploadedBy: string`
-
-### 7.6 Export Contract
-
-`GET /api/deviations/export`
-- same filter parameters as the list endpoint
-- returns `text/csv`
-- frontend downloads as blob/file
+| File | Action | Purpose |
+|---|---|---|
+| `backend/src/Greenfield.Api/Program.cs` | Modify | Map dashboard endpoints and ensure service registration is wired |
+| `backend/src/Greenfield.Api/Endpoints/DashboardEndpoints.cs` | Create | Minimal API endpoint group for dashboard summary |
+| `backend/src/Greenfield.Application/Dashboard/Contracts/DashboardSummaryDto.cs` | Create | Summary response record |
+| `backend/src/Greenfield.Application/Dashboard/Contracts/DashboardKpisDto.cs` | Create | KPI record |
+| `backend/src/Greenfield.Application/Dashboard/Contracts/DashboardTrendPointDto.cs` | Create | Trend point record |
+| `backend/src/Greenfield.Application/Dashboard/Contracts/DashboardStatusSliceDto.cs` | Create | Status distribution record |
+| `backend/src/Greenfield.Application/Dashboard/Contracts/GetDashboardSummaryQuery.cs` | Create | Query record for filters/date range |
+| `backend/src/Greenfield.Application/Dashboard/IDashboardService.cs` | Create | Dashboard query abstraction |
+| `backend/src/Greenfield.Application/Dashboard/DashboardService.cs` | Create | Application service with aggregation orchestration |
+| `backend/src/Greenfield.Application/Extensions/...` | Modify | Register dashboard service in DI |
+| `backend/src/Greenfield.Infrastructure/...Deviation...Repository...` | Modify | Add aggregation/read-model methods |
+| `backend/src/Greenfield.Infrastructure/Extensions/...` | Modify | Register any new repository/query services |
+| `backend/tests/Greenfield.Api.Tests/DashboardEndpointsTests.cs` | Create | Integration tests for summary endpoint |
+| `backend/tests/Greenfield.Application.Tests/DashboardServiceTests.cs` | Create | Unit tests for KPI/trend/status aggregation mapping |
 
 ### 7a. Frontend Contract Updates
 
-The backend introduces a full deviation-management API surface. The following frontend files must be created or modified to keep the Angular contract aligned.
+The backend introduces a new dashboard summary contract and endpoint. The following frontend files must be created or modified to keep the Angular contract synchronized.
 
-| File | Contract change |
+| File | Change |
 |---|---|
-| `frontend/src/app/features/deviations/models/deviation.models.ts` | Add TypeScript interfaces for `DeviationListItemDto`, `DeviationDetailDto`, `DeviationAssessmentDto`, `DeviationInvestigationDto`, `DeviationCorrectiveActionDto`, `DeviationClosureDto`, `DeviationAttachmentDto`, `DeviationActivityDto`, `DeviationLookupDto`, and `PagedResultDto<T>`. Add string-literal union types for `DeviationSeverity`, `DeviationStatus`, and `DeviationWorkflowStep`. |
-| `frontend/src/app/features/deviations/models/deviation-filters.models.ts` | Add `DeviationQuery`, page/pageSize contract shapes, export query shape, and strongly typed editor request payloads matching each backend step endpoint. |
-| `frontend/src/app/features/deviations/data/deviation-api.service.ts` | Add methods `getDeviations(query)`, `getDeviation(id)`, `createDeviation(dto)`, `saveRegistration(id, dto)`, `saveAssessment(id, dto)`, `saveInvestigation(id, dto)`, `saveCorrectiveAction(id, dto)`, `closeDeviation(id, dto)`, `advanceStep(id, dto)`, `getLookups()`, `uploadAttachment(id, file, uploadedBy)`, `downloadAttachment(id, attachmentId)`, and `exportDeviations(query)`. |
-| `frontend/src/app/features/deviations/data/deviation-list.store.ts` | Bind the paged list contract, lookup contract, and export method; normalize query-string state to the API filter model. |
-| `frontend/src/app/features/deviations/data/deviation-editor.store.ts` | Bind the detail DTO, attachment metadata contract, activity timeline contract, and step-specific save/advance payloads. |
-| `frontend/src/app/features/deviations/deviations.page.ts` | Render `PagedResultDto<DeviationListItemDto>` and wire filter/search/pagination/export actions to the typed store contract. |
-| `frontend/src/app/features/deviations/deviation-editor.page.ts` | Render `DeviationDetailDto`, current-step data, attachments, and activity timeline; route create/edit modes to the correct backend methods. |
-| `frontend/src/app/features/deviations/components/deviation-table.component.ts` | Render the API list-item contract including `deviationNumber`, `status`, `severity`, `responsiblePerson`, `deadline`, `createdAt`, and `currentStep`. |
-| `frontend/src/app/features/deviations/components/deviation-card-list.component.ts` | Render the same list-item contract in the mobile card layout. |
-| `frontend/src/app/features/deviations/components/deviation-filter-panel.component.ts` | Bind typed lookup arrays and emit a typed `DeviationQuery` payload. |
-| `frontend/src/app/features/deviations/components/deviation-form.component.ts` | Map step-specific form values to the create/save request contracts. |
-| `frontend/src/app/features/deviations/components/deviation-workflow-stepper.component.ts` | Consume the `DeviationWorkflowStep` union and current-step field from the detail contract. |
-| `frontend/src/app/features/deviations/components/deviation-metadata-sidebar.component.ts` | Render detail metadata including `status`, `severity`, `reporter`, `responsiblePerson`, `createdAt`, `updatedAt`, and `closedAt`. |
-| `frontend/src/app/features/deviations/components/deviation-activity-timeline.component.ts` | Render `DeviationActivityDto[]` with timestamp and activity type labels. |
-| `frontend/src/app/features/deviations/components/deviation-attachments.component.ts` | Render `DeviationAttachmentDto[]`, invoke upload/download APIs, and expose file constraints from the backend contract. |
+| `frontend/src/app/features/dashboard/data/dashboard.models.ts` | Create interfaces for `DashboardSummaryDto`, `DashboardKpisDto`, `DashboardTrendPointDto`, and `DashboardStatusSliceDto` |
+| `frontend/src/app/features/dashboard/data/dashboard-api.service.ts` | Add `getSummary(query: DashboardSummaryQuery)` method calling `GET /api/dashboard/summary` |
+| `frontend/src/app/features/dashboard/data/dashboard.store.ts` | Replace seeded/mock types with imported dashboard contract interfaces; map summary response into KPI, trend, and doughnut chart view models |
+| `frontend/src/app/features/dashboard/dashboard.page.ts` | Consume the new summary state and coordinate it with the deviations table source |
+| `frontend/src/app/features/dashboard/components/deviation-kpi-card.component.ts` | Accept typed KPI input derived from `DashboardKpisDto` |
+| `frontend/src/app/features/dashboard/components/deviation-trend-chart.component.ts` | Accept typed `DashboardTrendPointDto[]`-derived chart input |
+| `frontend/src/app/features/dashboard/components/status-distribution-chart.component.ts` | Accept typed `DashboardStatusSliceDto[]`-derived chart input |
+| `frontend/src/app/features/deviations/data/deviation-api.service.ts` | If absent, create/extract shared deviations list method so the dashboard table can reuse the existing backend list contract without duplicating HTTP logic |
+| `frontend/src/app/app.routes.ts` | Ensure the replacement dashboard route points to the new API-backed dashboard experience |
+| `frontend/src/main.ts` | Register `provideCharts(withDefaultRegisterables())` if not already present so typed chart components can render the contract data |
 
-**Type mappings applied:**
+**Type mappings applied**
+- `record` DTO -> TypeScript `interface`
 - `Guid` -> `string`
 - `string` -> `string`
 - `int`, `long`, `decimal`, `double` -> `number`
 - `bool` -> `boolean`
-- `DateTimeOffset`, `DateTime` -> `string`
-- `DateTimeOffset?`, `DateTime?` -> `string | null`
-- `T?` -> `T | null`
-- `IReadOnlyList<T>`, `List<T>`, `T[]` -> `T[]`
-- `IReadOnlyDictionary<string, T>` -> `Record<string, T>`
-- C# `enum` -> TypeScript string-literal union
-- C# `record` DTO -> TypeScript `interface`
+- `DateTimeOffset`, `DateTime` -> `string` (ISO 8601)
+- nullable date/time -> `string | null`
+- `IReadOnlyList<T>` / `List<T>` / `T[]` -> `T[]`
+- backend enum values -> string-literal union matching serialized enum names
 
----
+**Dashboard-specific mappings expected here**
+- `DashboardTrendPointDto.bucketStart: DateTimeOffset` -> `bucketStart: string`
+- `DashboardStatusSliceDto.status: DeviationStatus` -> `status: '...'` string-literal union matching backend serialization
+- KPI counts -> `number`
 
-## 8. File-by-File Backend Plan
+### 7.2 Frontend UI/styling
 
-### 8.1 Files to create
+| File | Action | Purpose |
+|---|---|---|
+| `frontend/src/main.ts` | Modify | Register Chart.js providers once at bootstrap |
+| `frontend/src/styles.css` | Modify | Tailwind v4 `@source` + `@theme` tokens for dashboard and status colors |
+| `frontend/src/app/app.routes.ts` | Modify | Route new dashboard as the primary replacement experience |
+| `frontend/src/app/features/dashboard/dashboard.page.ts` | Create/replace | Container page for layout, data wiring, responsive sections |
+| `frontend/src/app/features/dashboard/data/dashboard.store.ts` | Modify | Replace seeded/mock dashboard state with live API-backed signals |
+| `frontend/src/app/features/dashboard/data/dashboard-api.service.ts` | Create | Summary HTTP client |
+| `frontend/src/app/features/dashboard/data/dashboard.models.ts` | Create | Dashboard DTO interfaces |
+| `frontend/src/app/features/dashboard/components/dashboard-shell.component.ts` | Create | Sidebar/topbar shell composition |
+| `frontend/src/app/features/dashboard/components/dashboard-filter-bar.component.ts` | Create | Search/status/date filters |
+| `frontend/src/app/features/dashboard/components/deviation-kpi-card.component.ts` | Create | KPI presentation card |
+| `frontend/src/app/features/dashboard/components/deviation-trend-chart.component.ts` | Create | Line/area chart wrapper |
+| `frontend/src/app/features/dashboard/components/status-distribution-chart.component.ts` | Create | Doughnut chart wrapper |
+| `frontend/src/app/features/dashboard/components/recent-deviations-table.component.ts` | Create | Desktop table |
+| `frontend/src/app/features/dashboard/components/recent-deviations-mobile-list.component.ts` | Create | Mobile card-list version |
+| `frontend/src/app/features/deviations/data/deviation-api.service.ts` | Create/modify | Shared deviation list retrieval for dashboard table reuse |
 
-| File | Purpose |
-|---|---|
-| `backend/src/Greenfield.Domain/Deviations/Deviation.cs` | Main aggregate root and workflow state |
-| `backend/src/Greenfield.Domain/Deviations/DeviationAssessment.cs` | Assessment value object/record |
-| `backend/src/Greenfield.Domain/Deviations/DeviationInvestigation.cs` | Investigation value object/record |
-| `backend/src/Greenfield.Domain/Deviations/DeviationCorrectiveAction.cs` | Corrective action value object/record |
-| `backend/src/Greenfield.Domain/Deviations/DeviationClosure.cs` | Closure value object/record |
-| `backend/src/Greenfield.Domain/Deviations/DeviationAttachment.cs` | Attachment metadata + content holder |
-| `backend/src/Greenfield.Domain/Deviations/DeviationActivityEntry.cs` | Activity timeline entry |
-| `backend/src/Greenfield.Domain/Deviations/DeviationEnums.cs` | Shared enums |
-| `backend/src/Greenfield.Application/Abstractions/IDeviationService.cs` | Application service contract |
-| `backend/src/Greenfield.Application/Abstractions/IDeviationRepository.cs` | Repository contract |
-| `backend/src/Greenfield.Application/Abstractions/IDeviationLookupProvider.cs` | Lookup contract |
-| `backend/src/Greenfield.Application/Deviations/DeviationService.cs` | Core feature orchestration |
-| `backend/src/Greenfield.Application/Deviations/Requests/*.cs` | Request records |
-| `backend/src/Greenfield.Application/Deviations/Dtos/*.cs` | DTO records |
-| `backend/src/Greenfield.Infrastructure/Deviations/InMemoryDeviationRepository.cs` | Thread-safe in-memory persistence |
-| `backend/src/Greenfield.Infrastructure/Deviations/DeviationSeedData.cs` | Demo/QA seed dataset |
-| `backend/src/Greenfield.Api/Endpoints/DeviationEndpoints.cs` | Minimal API route group |
-| `backend/src/Greenfield.Api/Properties/launchSettings.json` | Required http/https profiles |
+## 8. Implementation Sequence
 
-### 8.2 Files to modify
+1. **Backend contract first**
+   - add DTO records/query record
+   - implement dashboard service
+   - add infrastructure aggregation methods
+   - expose `/api/dashboard/summary`
+2. **Backend tests**
+   - service mapping/aggregation tests
+   - endpoint integration tests
+3. **Frontend contract sync**
+   - add TypeScript interfaces + summary API service
+   - extract shared deviations query service if needed
+4. **Frontend shell and store refactor**
+   - replace seeded dashboard store with API-backed signals
+   - register chart providers in bootstrap
+5. **Visual implementation**
+   - layout shell
+   - KPI cards
+   - charts
+   - table/mobile card list
+   - filters
+6. **Styling and responsiveness**
+   - Tailwind tokens
+   - desktop/tablet/mobile layouts
+7. **Verification**
+   - frontend build
+   - backend build
+   - responsive/manual QA against the design intent
 
-| File | Change |
-|---|---|
-| `backend/src/Greenfield.Api/Program.cs` | register endpoints, JSON enum serialization, CORS verification, conditional HTTPS redirect |
-| `backend/src/Greenfield.Application/Extensions/ApplicationServiceExtensions.cs` | register `IDeviationService` |
-| `backend/src/Greenfield.Infrastructure/Extensions/InfrastructureServiceExtensions.cs` | register in-memory repository + lookup provider |
+## 9. Testing Strategy
 
-### 8.3 Tests to create/update
+### 9.1 Backend
+- unit test KPI aggregation logic
+- unit test trend bucketing logic
+- unit test status distribution percentage calculation
+- integration test `GET /api/dashboard/summary`
+- verify enum JSON serialization remains string-based
+- verify bad date range returns `400`
 
-Under `backend/tests/` create or extend test projects consistent with the existing naming pattern:
-- API integration tests for endpoint success/failure cases
-- application service tests for workflow rules, filtering, export, and timeline creation
+### 9.2 Frontend
+- unit test `dashboard.store.ts` state transitions for success/loading/error
+- component tests for KPI card/chart/table inputs
+- verify chart components render with typed inputs and no runtime registration errors
+- verify responsive layout behavior at desktop/tablet/mobile breakpoints
+- verify dashboard loads without auth/guard intervention
 
-Recommended files:
-- `backend/tests/Greenfield.Api.Tests/DeviationEndpointsTests.cs`
-- `backend/tests/Greenfield.Application.Tests/DeviationServiceTests.cs`
+### 9.3 End-to-end acceptance validation
+- dashboard route shows new layout instead of old seeded dashboard
+- KPI cards use real API data
+- line/area chart shows trend data from API
+- doughnut chart shows status distribution from API
+- table renders paged deviation rows from real endpoint
+- mobile view collapses sidebar and swaps table to cards
+- `ng build` and `dotnet build` succeed
 
----
-
-## 9. File-by-File Frontend Plan
-
-### 9.1 Files to create
-
-| File | Purpose |
-|---|---|
-| `frontend/src/app/features/deviations/deviations.page.ts` | List page |
-| `frontend/src/app/features/deviations/deviation-editor.page.ts` | Create + workflow page |
-| `frontend/src/app/features/deviations/components/deviation-filter-panel.component.ts` | Advanced filters |
-| `frontend/src/app/features/deviations/components/deviation-table.component.ts` | Desktop table |
-| `frontend/src/app/features/deviations/components/deviation-card-list.component.ts` | Mobile cards |
-| `frontend/src/app/features/deviations/components/deviation-form.component.ts` | Step-aware form body |
-| `frontend/src/app/features/deviations/components/deviation-workflow-stepper.component.ts` | Horizontal workflow stepper |
-| `frontend/src/app/features/deviations/components/deviation-metadata-sidebar.component.ts` | Sidebar summary |
-| `frontend/src/app/features/deviations/components/deviation-activity-timeline.component.ts` | Timeline |
-| `frontend/src/app/features/deviations/components/deviation-attachments.component.ts` | Upload/download area |
-| `frontend/src/app/features/deviations/data/deviation-api.service.ts` | HTTP contract layer |
-| `frontend/src/app/features/deviations/data/deviation-list.store.ts` | List page signal store |
-| `frontend/src/app/features/deviations/data/deviation-editor.store.ts` | Detail/editor signal store |
-| `frontend/src/app/features/deviations/models/deviation.models.ts` | DTO/type definitions |
-| `frontend/src/app/features/deviations/models/deviation-filters.models.ts` | Query and request contracts |
-
-### 9.2 Files to modify
-
-| File | Change |
-|---|---|
-| `frontend/src/app/app.routes.ts` | add lazy routes for list/new/detail |
-| `frontend/src/app/layout/shell.component.ts` | add navigation link / menu entry for deviations |
-| `frontend/src/styles.css` | add or confirm Tailwind 4 source scanning + theme tokens for deviation UI |
-
-### 9.3 Frontend testing
-
-Recommended additions:
-- component tests for filter panel, table/card rendering, stepper states, and timeline rendering
-- store/service tests for list query generation and editor save actions
-
-Recommended files:
-- `frontend/src/app/features/deviations/data/deviation-api.service.spec.ts`
-- `frontend/src/app/features/deviations/data/deviation-list.store.spec.ts`
-- `frontend/src/app/features/deviations/data/deviation-editor.store.spec.ts`
-- `frontend/src/app/features/deviations/components/deviation-filter-panel.component.spec.ts`
-- `frontend/src/app/features/deviations/components/deviation-form.component.spec.ts`
-
----
-
-## 10. Styling and Visual Fidelity Checklist
-
-Use the visual manifest as the acceptance baseline.
-
-### Required visual patterns
-- OKLCH-backed semantic color system
-- badge palette consistency across list and detail views
-- responsive table/card switch
-- mobile bottom-sheet filters
-- two-column editor layout from tablet upward
-- clear hover/active/focus states
-- professional spacing, shadows, borders, and muted surfaces
-
-### Tailwind implementation notes
-- prefer utility classes in inline templates
-- use `gap-*`, not margin hacks
-- use responsive prefixes for layout shifts
-- use `dark:` compatibility even if dark mode is not activated in v1
-- keep theme values centralized in `@theme`
-
----
-
-## 11. Testing Strategy
-
-### Backend
-- unit-test workflow rules, search/filter logic, pagination, export generation, and attachment validation
-- integration-test all minimal API routes with `WebApplicationFactory<T>`
-- test `404`, validation failures, invalid step transitions, and empty export results
-
-### Frontend
-- unit-test stores and API service typing
-- component-test list states: loading, empty, populated, filtered, mobile card mode
-- component-test editor states: create mode, existing deviation mode, step progression, save errors
-
-### Manual QA scenarios
-- create a new deviation
-- edit and advance across every workflow step
-- close a deviation
-- upload and download an attachment
-- apply/reset filters on desktop and mobile
-- export filtered list
-- verify responsive behavior at mobile/tablet/desktop widths
-
----
-
-## 12. Delivery Sequence
-
-1. **Backend domain + DTO contract**
-   - create domain records/enums and application DTOs/requests
-2. **Backend repository + service**
-   - implement in-memory store, seed data, workflow rules, export, attachments
-3. **Backend endpoints + hosting updates**
-   - map minimal APIs, register DI, add launch settings if missing
-4. **Frontend contracts + API service**
-   - add TypeScript models and HTTP service methods
-5. **Frontend list experience**
-   - list page, filters, badges, pagination, export
-6. **Frontend editor workflow**
-   - form, stepper, metadata, timeline, attachments
-7. **Styling polish**
-   - theme tokens, responsive patterns, accessibility refinement
-8. **Automated tests + QA pass**
-
----
-
-## 13. Risks and Mitigations
+## 10. Risks and Mitigations
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| In-memory attachments can grow memory quickly | unstable dev server memory usage | enforce per-file limit, allowed types, and low default seed volume |
-| Step-specific payloads can drift between backend and frontend | broken saves | keep DTO/request files centralized and update section 7a first during implementation |
-| Responsive table/card duplication can diverge visually | inconsistent UX | keep both views bound to the same typed list-item contract |
-| Export may accidentally export only the current page | incorrect business output | make export endpoint ignore paging unless explicitly requested |
-| Hardcoded status/severity colors can drift from manifest | inconsistent visual language | define all colors through Tailwind `@theme` tokens |
+| Existing deviations repository lacks aggregation methods | Medium | Add dedicated read-model methods instead of loading full lists client-side |
+| Dashboard store currently mixes mock/demo shape with UI logic | Medium | Separate API contract models from presentation mapping in the refactor |
+| Chart provider registration missing in bootstrap | High | Explicitly add `provideCharts(withDefaultRegisterables())` in `main.ts` |
+| Tailwind classes missing from Angular inline templates | High | Ensure `@source "./src/**/*.ts";` exists in `frontend/src/styles.css` |
+| Enum naming mismatch between backend and frontend unions | Medium | Reuse serialized enum names exactly; do not create translated transport values |
+| Mobile table layout becomes unreadable | Medium | Use a dedicated mobile card-list component instead of forcing a dense table |
 
----
-
-## 14. Repository Hygiene
-
-Existing `.gitignore` files are present at:
-- `.gitignore`
-- `frontend/.gitignore`
-- `backend/.gitignore`
-
-During implementation, review and append only missing entries. Ensure the repo ignores at minimum:
-- `.NET`: `bin/`, `obj/`, `.vs/`, `TestResults/`, `*.user`
-- Angular/Node: `node_modules/`, `dist/`, `.angular/`, `coverage/`
-- general: `.DS_Store`, `Thumbs.db`, `*.log`, `.env`
-
----
-
-## 15. Definition of Done
+## 11. Definition of Done
 
 The feature is complete when:
-- Angular routes for list, create, and detail/process are available
-- deviation list supports search, filters, pagination, badges, and export
-- deviation editor supports all workflow steps with save + next-step actions
-- activity timeline is automatically populated by backend actions
-- attachments can be uploaded and downloaded within agreed in-memory limits
-- backend exposes documented minimal API endpoints with OpenAPI visibility
-- frontend contracts fully match backend DTOs and request payloads
-- automated tests cover core workflow and API behaviors
-- styling matches the visual manifest’s responsive and semantic color expectations
+- the new dashboard replaces the current seeded dashboard
+- summary data comes from `/api/dashboard/summary`
+- table data comes from the existing deviations list contract
+- all dashboard visuals are responsive and aligned with the visual manifest/design intent
+- Angular 20 patterns (standalone, signals, built-in control flow, `inject()`) are followed
+- Tailwind CSS 4 theming is tokenized with OKLCH values
+- backend remains minimal API + Clean Architecture compliant
+- API/frontend contracts are synchronized and documented in section 7a
+- frontend and backend builds pass without errors
