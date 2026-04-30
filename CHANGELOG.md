@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [TASK-20260430101426] – Bug in the application. Getting 404 on requests to this url: http://localhost:4200/api/deviations – 2026-04-30
+### Added
+- Integrasjonstester for `GET /api/deviations` som verifiserer suksessstatus, `application/json` og array-payload.
+- Bootstrap-skriptene `bootstrap.sh` og `bootstrap.ps1` for å restore backend og installere frontend-avhengigheter på macOS/Linux og Windows.
+### Changed
+- Angular dev-proxyen i `frontend/proxy.conf.json` beholder nå `/api`-prefikset når requests videresendes til backend.
+### Fixed
+- Lokale kall til `http://localhost:4200/api/deviations` returnerer ikke lenger 404.
+
 ## [FEAT-006] – Deviation Management Dashboard – 2026-04-30
 ### Added
 - Nytt `GET /api/dashboard/summary`-endepunkt for KPIer, statusfordeling, månedstrend og siste avvik.

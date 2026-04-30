@@ -31,6 +31,21 @@ Greenfield er et fullstack-oppsett med en .NET 10 Web API-backend og en Angular 
 - .NET 10 SDK
 - Node.js og npm
 
+### Bootstrap
+Kjør ett av bootstrap-skriptene for å installere avhengigheter:
+
+```bash
+./bootstrap.sh
+```
+
+eller
+
+```powershell
+.\bootstrap.ps1
+```
+
+Skriptet kjører `dotnet restore backend/Greenfield.sln` og `npm install` i `frontend/`.
+
 ### Backend
 ```bash
 cd backend
@@ -58,7 +73,7 @@ cd frontend
 npm start
 ```
 
-Frontend bruker en dev-proxy fra `/api` til backend på `http://localhost:5000`.
+Frontend bruker `npm start`, som laster `proxy.conf.json` og bevarer `/api`-prefikset når requests videresendes til backend på `http://localhost:5000`.
 
 ## API-oversikt
 
