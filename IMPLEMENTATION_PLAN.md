@@ -227,3 +227,11 @@ Coverage goals:
 
 ### 7a. Frontend Contract Updates
 No frontend source-file updates are required for this plan. The backend changes are documentation exposure and backward-compatible routing normalization only; the Angular proxy already forwards `/api/*` requests unchanged.
+---
+### Operator Architectural Decisions
+The following decisions were made by the operator during plan review
+and **must be treated as authoritative constraints** by CodingAgent:
+
+- **How should /api/docs be served?** → Lightweight redirect to helper UI route _(decided by slack at 2026-04-30 15:42:56Z)_
+- **Should /health remain after adding /api/health?** → Keep both routes _(decided by auto at 2026-04-30 15:42:56Z)_
+- **How should deviation collection-root paths be handled?** → Canonical /api/deviations only _(decided by slack at 2026-04-30 15:42:56Z)_
