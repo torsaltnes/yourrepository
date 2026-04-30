@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [TASK-20260430162256] – Vi skal endre på fargeprofilen i løsnigen. Se på fargene i VISUAL_MANIFEST.JSON og endre profilen vår – 2026-04-30
+### Added
+- Nye frontend-testfiler for shell, sidebar, topbar og globale theme-tokens.
+- Frontend-verifiseringskommandoer i bootstrap-skriptene for build og headless testkjøring.
+### Changed
+- `frontend/src/styles.css` bruker nå den lyse OKLCH-paletten fra visual manifestet, med semantiske token-navn og bevarte kompatibilitetstokens.
+- `frontend/src/app/layout/shell.component.ts`, `sidebar.component.ts` og `topbar.component.ts` er oppdatert til semantiske fargetokens for shell-, navigasjons- og toppfeltstiler.
+- Global font- og bakgrunnsstandard er justert til manifestets lyse tema.
+### Fixed
+- Kompatibilitetstokenet `--color-surface-overlay` er beholdt, og chart tokens er videreført slik at eksisterende styling ikke brytes.
+- Aktiv navigasjon og kontroller er tilpasset lysere kontraster for bedre lesbarhet.
+
 ## [TASK-20260430153157] – Vi sliter med at flere API endpoints returnerer 404 – 2026-04-30
 ### Added
 - Nytt `OpenApiEndpoints`-oppsett som eksponerer OpenAPI JSON på `/openapi/v1.json` og browserdocs på `/api/docs`.
