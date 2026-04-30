@@ -18,7 +18,7 @@ Greenfield er et fullstack-oppsett med en .NET 10 Web API-backend og en Angular 
 - Signals
 - Reactive Forms
 - RxJS
-- Tailwind CSS v4 med oklch-baserte design tokens
+- Tailwind CSS v4 med semantiske design tokens og lys OKLCH-palett fra visual manifestet
 - Chart.js / ng2-charts
 
 ### Testing
@@ -46,6 +46,13 @@ eller
 ```
 
 Skriptet kjører `dotnet restore backend/Greenfield.sln` og `npm install` i `frontend/`.
+Etterpå kan frontend verifiseres med:
+
+```bash
+cd frontend
+npm run build
+npm test -- --watch=false --browsers=ChromeHeadless
+```
 
 ### Backend
 ```bash
@@ -60,7 +67,7 @@ dotnet test Greenfield.sln
 cd frontend
 npm install
 npm run build
-npm run test -- --watch=false --browsers=ChromeHeadless
+npm test -- --watch=false --browsers=ChromeHeadless
 ```
 
 ### Kjør lokalt
