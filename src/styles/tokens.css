@@ -1,0 +1,17 @@
+/* =========================================================
+   Design tokens – CSS custom properties
+   These are consumed by app.css @theme and can be used
+   directly in any non-Tailwind CSS context.
+   ========================================================= */
+:root {
+  --color-primary-morning: oklch(0.70 0.12 225);
+  --color-primary-evening: oklch(0.72 0.15 140);
+  --color-error: oklch(0.62 0.22 30);
+  --color-surface-light: oklch(0.98 0.01 0);
+  --color-surface-header: oklch(0.90 0.02 0);
+  --color-text-primary: oklch(0.15 0.01 0);
+  --color-text-secondary: oklch(0.35 0.02 0);
+  --color-border: oklch(0.85 0.03 0);
+  --radius-md: 0.75rem;
+  --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}

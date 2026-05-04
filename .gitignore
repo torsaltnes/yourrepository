@@ -1,0 +1,17 @@
+# AFA safety rules — prevent build artifacts from being committed
+node_modules/
+.angular/cache/
+.next/
+dist/
+bin/
+obj/
+__pycache__/
+.venv/
+*.pyc
+.DS_Store
+Thumbs.db
+*.log
+*.suo
+*.user
+.vs/
+
